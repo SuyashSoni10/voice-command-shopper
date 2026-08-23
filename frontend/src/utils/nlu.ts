@@ -1,4 +1,6 @@
-export interface NluResult {
+// ─── Shared NLU types (frontend-side, mirrors nluSchema.ts) ───
+
+export interface NluAction {
   intent: string;
   entities: {
     item_name?: string | null;
@@ -9,10 +11,21 @@ export interface NluResult {
     price_max?: number | null;
   };
   confidence: number;
+}
+
+export interface NluResponse {
+  actions: NluAction[];
   detected_language: string;
 }
 
-export function parseFastPath(transcript: string, language: string): NluResult | null {
+/** Lightweight representation of a list item for LLM context */
+interface ListContext {
+  name: string;
+  quantity?: number;
+  unit?: string;
+}
+
+export function parseFastPath(transcript: string, language: string): NluResponse | null {
   // Fast path currently only targets English. 
   // Other languages immediately fall back to the LLM.
   if (!language.startsWith('en')) {
@@ -24,9 +37,7 @@ export function parseFastPath(transcript: string, language: string): NluResult |
   // 1. Clear list
   if (['clear my list', 'clear list', 'start over'].includes(normalized)) {
     return {
-      intent: 'CLEAR_LIST',
-      entities: {},
-      confidence: 1.0,
+      actions: [{ intent: 'CLEAR_LIST', entities: {}, confidence: 1.0 }],
       detected_language: language,
     };
   }
@@ -37,15 +48,14 @@ export function parseFastPath(transcript: string, language: string): NluResult |
   if (removeMatch && removeMatch[1]) {
     const itemStr = removeMatch[1];
     
-    // Safety check: if it contains conjunctions or is too long, fallback to LLM
-    if (itemStr.includes(' and ') || itemStr.includes(' or ') || itemStr.includes(' put ') || itemStr.length > 30) {
+    // Safety check: if it contains conjunctions, numbers (digits or words), or is too long, fallback to LLM
+    const numberWords = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'half', 'dozen', 'couple', 'some'];
+    if (itemStr.includes(' and ') || itemStr.includes(' or ') || itemStr.includes(' put ') || /\d/.test(itemStr) || numberWords.some(w => itemStr.toLowerCase().includes(w)) || itemStr.length > 30) {
       return null;
     }
 
     return {
-      intent: 'REMOVE_ITEM',
-      entities: { item_name: itemStr },
-      confidence: 1.0,
+      actions: [{ intent: 'REMOVE_ITEM', entities: { item_name: itemStr }, confidence: 1.0 }],
       detected_language: language,
     };
   }
@@ -58,19 +68,22 @@ export function parseFastPath(transcript: string, language: string): NluResult |
     const unitStr = addMatch[2];
     const itemStr = addMatch[3];
     
-    // Safety check - if it's too complex or has "under", "cheap" (search intents), fallback
-    if (itemStr.includes('under') || itemStr.includes('find') || itemStr.includes(' and ') || itemStr.length > 30) {
+    // Safety check - if it's too complex, has multiple items, or fractional phrases, fallback
+    const fallbackKeywords = ['under', 'find', ' and ', ' or ', 'half', 'dozen', 'couple', 'some'];
+    if (fallbackKeywords.some(kw => itemStr.includes(kw)) || itemStr.length > 30 || itemStr.split(' ').length > 3) {
       return null;
     }
 
     return {
-      intent: 'ADD_ITEM',
-      entities: {
-        item_name: itemStr,
-        quantity: qtyStr ? parseInt(qtyStr, 10) : 1,
-        unit: unitStr ? unitStr.replace(' of', '').trim() : null,
-      },
-      confidence: 1.0,
+      actions: [{
+        intent: 'ADD_ITEM',
+        entities: {
+          item_name: itemStr,
+          quantity: qtyStr ? parseInt(qtyStr, 10) : 1,
+          unit: unitStr ? unitStr.replace(' of', '').trim() : null,
+        },
+        confidence: 1.0,
+      }],
       detected_language: language,
     };
   }
@@ -78,9 +91,7 @@ export function parseFastPath(transcript: string, language: string): NluResult |
   // 4. Suggestions
   if (['what am i running low on', 'any suggestions', 'suggestions', 'what should i buy'].includes(normalized)) {
     return {
-      intent: 'GET_SUGGESTIONS',
-      entities: {},
-      confidence: 1.0,
+      actions: [{ intent: 'GET_SUGGESTIONS', entities: {}, confidence: 1.0 }],
       detected_language: language,
     };
   }
@@ -89,7 +100,13 @@ export function parseFastPath(transcript: string, language: string): NluResult |
   return null;
 }
 
-export async function processCommand(transcript: string, language: string, supabaseUrl: string, supabaseKey: string): Promise<NluResult> {
+export async function processCommand(
+  transcript: string,
+  language: string,
+  supabaseUrl: string,
+  supabaseKey: string,
+  currentList: ListContext[] = []
+): Promise<NluResponse> {
   // 1. Fast path (regex/keyword)
   const fastResult = parseFastPath(transcript, language);
   if (fastResult) {
@@ -107,23 +124,21 @@ export async function processCommand(transcript: string, language: string, supab
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${supabaseKey}` // Uses Anon Key for invoking
       },
-      body: JSON.stringify({ transcript, language })
+      body: JSON.stringify({ transcript, language, currentList })
     });
 
     if (!response.ok) {
       throw new Error(`Edge function returned ${response.status}`);
     }
 
-    const data: NluResult = await response.json();
+    const data: NluResponse = await response.json();
     console.log('[NLU] Gemini Fallback parsed:', data);
     return data;
   } catch (error) {
     console.error('[NLU] Fallback failed:', error);
     // If the network or API fails, return a safe fallback rather than crashing
     return {
-      intent: 'UNKNOWN',
-      entities: {},
-      confidence: 0,
+      actions: [{ intent: 'UNKNOWN', entities: {}, confidence: 0 }],
       detected_language: language
     };
   }
