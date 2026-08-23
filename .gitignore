@@ -16,4 +16,7 @@ Thumbs.db
 
 # Agent files
 AGENTS.md
-prompt.md
+prompt.md
+
+#Testing files
+test*.js
