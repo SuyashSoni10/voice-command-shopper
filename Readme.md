@@ -103,3 +103,49 @@ The application features a premium, modern aesthetic built with raw CSS (no heav
   - Toast notifications smoothly slide up from the bottom to confirm actions.
 - **Glassmorphism Prompts**: When the app needs follow-up information (like asking for a quantity), a frosted glass overlay dims the background, focusing the user's attention on the required input.
 - **Responsive Design**: The app is built mobile-first, utilizing a centered max-width layout that feels like a native app on mobile devices while remaining elegant on desktop screens.
+
+---
+
+## Project Setup
+
+Follow these steps to run the project locally on your machine.
+
+### Prerequisites
+- Node.js (v18+)
+- A [Supabase](https://supabase.com/) account
+- A [Google Gemini](https://aistudio.google.com/) API Key
+- Supabase CLI installed (`npm install -g supabase`)
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/SuyashSoni10/voice-command-shopper.git
+cd voice-command-shopper
+```
+
+### 2. Environment Variables
+Create a `.env` file in the **root** of the project and add your Supabase and Gemini credentials:
+```env
+VITE_SUPABASE_URL="your-supabase-project-url"
+VITE_SUPABASE_ANON_KEY="your-supabase-anon-key"
+SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-role-key"
+GEMINI_API_KEY="your-gemini-api-key"
+```
+
+### 3. Database Setup (Supabase)
+Run the provided SQL schema in your Supabase SQL Editor to create the required tables and policies:
+1. Open the `supabase/schema.sql` file.
+2. Copy the contents and execute them in your Supabase project's SQL editor.
+
+### 4. Start the Frontend
+Navigate into the `frontend` directory, install dependencies, and start the Vite development server:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 5. Deploy Edge Functions (Optional for local testing)
+If you want to test the Gemini NLU fallback or Suggestions locally, you can serve the Edge Functions via the Supabase CLI:
+```bash
+supabase functions serve nlu-fallback --env-file ../.env
+```
