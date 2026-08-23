@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { nluSchema, nluSystemPrompt } from "../../shared/nluSchema.ts"
+import { nluSchema, nluSystemPrompt } from "./nluSchema.ts"
 
 // Basic CORS headers
 const corsHeaders = {

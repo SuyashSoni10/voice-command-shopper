@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import './App.css';
 import { VoiceInput } from './components/VoiceInput';
+import { ShoppingList } from './components/ShoppingList';
 import { processCommand, type NluResult } from './utils/nlu';
+import { useShoppingList } from './hooks/useShoppingList';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -11,17 +13,40 @@ function App() {
   const [nluResult, setNluResult] = useState<NluResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const { items, loading, error, addItem, removeItem, togglePurchased, clearList } = useShoppingList();
+
   const handleCommand = React.useCallback(async (command: string, language: string) => {
     setLastCommand({ text: command, lang: language });
     setIsProcessing(true);
     setNluResult(null);
 
-    // Confidence gating: if confidence is low, handle it (Phase 4 will do actual CRUD)
     const result = await processCommand(command, language, SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    // Execute database operations based on the parsed intent
+    if (result && result.confidence >= 0.6) {
+      try {
+        switch (result.intent) {
+          case 'ADD_ITEM':
+            await addItem(result.entities as any);
+            break;
+          case 'REMOVE_ITEM':
+            if (result.entities?.item_name) {
+              await removeItem(result.entities.item_name as string);
+            }
+            break;
+          case 'CLEAR_LIST':
+            await clearList();
+            break;
+          // SEARCH_ITEM and GET_SUGGESTIONS to be implemented in future phases
+        }
+      } catch (e) {
+        console.error("Failed to execute intent against DB:", e);
+      }
+    }
     
     setNluResult(result);
     setIsProcessing(false);
-  }, []);
+  }, [addItem, removeItem, clearList]);
 
   return (
     <main style={{ maxWidth: '600px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
@@ -42,13 +67,24 @@ function App() {
 
       {isProcessing && (
         <div style={{ marginTop: '20px', textAlign: 'center', fontStyle: 'italic', color: '#666' }}>
-          🤔 Thinking... (Parsing intent)
+          🤔 Thinking... (Parsing intent & updating list)
         </div>
       )}
 
+      <section style={{ marginTop: '30px' }}>
+        <ShoppingList 
+          items={items} 
+          loading={loading} 
+          error={error} 
+          onToggle={togglePurchased} 
+          onDelete={removeItem} 
+        />
+      </section>
+
+      {/* Debug view for the NLU result - helpful during development */}
       {nluResult && !isProcessing && (
         <section style={{ marginTop: '40px', padding: '20px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
-          <h3>NLU Result:</h3>
+          <h3>Debug: Last NLU Result</h3>
           <p><strong>Intent:</strong> {nluResult.intent}</p>
           <p><strong>Entities:</strong></p>
           <pre style={{ backgroundColor: '#e0e0e0', padding: '10px', borderRadius: '4px', overflowX: 'auto' }}>
