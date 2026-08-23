@@ -60,6 +60,8 @@ Here are the intent categories:
 Entity Schema instructions:
 - 'item_name' should be normalized to lowercase singular (e.g. "bananas" -> "banana").
 - 'quantity' is a number (e.g. 5). For "half a dozen" → 6, "a couple" → 2, etc.
+  - IMPORTANT: If the user explicitly asks for a singular item (e.g. "a banana", "milk"), set quantity to 1.
+  - IMPORTANT: If the user asks for a plural item but DOES NOT specify a quantity (e.g. "bananas", "apples"), set quantity to null.
 - 'unit' is the unit (e.g. "bottle", "count", "kg"). Use null if not mentioned.
 - 'brand' is the brand if mentioned, null otherwise.
 - 'price_max' and 'price_min' are for searches (e.g. "under $5" -> price_max: 5).

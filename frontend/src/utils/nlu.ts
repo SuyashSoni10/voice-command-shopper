@@ -35,7 +35,11 @@ export function parseFastPath(transcript: string, language: string): NluResponse
   const normalized = transcript.toLowerCase().trim().replace(/[.,!]/g, '');
 
   // 1. Clear list
-  if (['clear my list', 'clear list', 'start over'].includes(normalized)) {
+  if (normalized.includes('clear my list') || 
+      normalized.includes('clear list') || 
+      normalized.includes('clear the list') || 
+      normalized.includes('start over') || 
+      normalized.includes('delete everything')) {
     return {
       actions: [{ intent: 'CLEAR_LIST', entities: {}, confidence: 1.0 }],
       detected_language: language,
@@ -43,8 +47,8 @@ export function parseFastPath(transcript: string, language: string): NluResponse
   }
 
   // 2. Remove simple item
-  // Matches "remove milk", "take off milk", "remove milk from my list"
-  const removeMatch = normalized.match(/^(?:remove|delete|take off) (.*?)(?: from my list)?$/);
+  // Matches "remove milk", "take off milk", "please remove milk from my list"
+  const removeMatch = normalized.match(/^(?:(?:can you |please |i want to |i need to )?(?:remove|delete|take off|drop)) (.*?)(?: from my list)?$/);
   if (removeMatch && removeMatch[1]) {
     const itemStr = removeMatch[1];
     
@@ -61,8 +65,8 @@ export function parseFastPath(transcript: string, language: string): NluResponse
   }
 
   // 3. Add simple item with optional quantity
-  // Matches "add 5 apples", "buy milk", "get 2 bottles of water"
-  const addMatch = normalized.match(/^(?:add|buy|get|i need) (?:(\d+)\s+)?(?:(bottles? of|cans? of|boxes? of|gallons? of|packs? of|bags? of|liters? of|grams? of|kg? of)\s+)?(.*?)$/);
+  // Matches "add 5 apples", "buy milk", "i want to buy apples", "please add water"
+  const addMatch = normalized.match(/^(?:(?:i want to |i need to |can you |please )?(?:add|buy|get)|i need|i want) (?:(\d+)\s+)?(?:(bottles? of|cans? of|boxes? of|gallons? of|packs? of|bags? of|liters? of|grams? of|kg? of)\s+)?(.*?)$/);
   if (addMatch && addMatch[3]) {
     const qtyStr = addMatch[1];
     const unitStr = addMatch[2];
@@ -79,7 +83,7 @@ export function parseFastPath(transcript: string, language: string): NluResponse
         intent: 'ADD_ITEM',
         entities: {
           item_name: itemStr,
-          quantity: qtyStr ? parseInt(qtyStr, 10) : 1,
+          quantity: qtyStr ? parseInt(qtyStr, 10) : (itemStr.endsWith('s') ? null : 1),
           unit: unitStr ? unitStr.replace(' of', '').trim() : null,
         },
         confidence: 1.0,
@@ -89,7 +93,11 @@ export function parseFastPath(transcript: string, language: string): NluResponse
   }
 
   // 4. Suggestions
-  if (['what am i running low on', 'any suggestions', 'suggestions', 'what should i buy'].includes(normalized)) {
+  if (normalized.includes('what am i running low on') || 
+      normalized.includes('any suggestions') || 
+      normalized === 'suggestions' || 
+      normalized.includes('what should i buy') ||
+      normalized.includes('what else do i need')) {
     return {
       actions: [{ intent: 'GET_SUGGESTIONS', entities: {}, confidence: 1.0 }],
       detected_language: language,

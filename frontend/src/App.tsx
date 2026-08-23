@@ -21,6 +21,7 @@ function App() {
   const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
   const [debugOpen, setDebugOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [quantityPrompt, setQuantityPrompt] = useState<{ itemName: string, resolve: (qty: number) => void } | null>(null);
 
   const { items, loading, error, addItem, removeItem, togglePurchased, clearList, checkoutPurchasedItems } = useShoppingList();
 
@@ -34,10 +35,21 @@ function App() {
     if (action.confidence < 0.6) return;
 
     switch (action.intent) {
-      case 'ADD_ITEM':
-        await addItem(action.entities as any);
-        showToast(`Added ${action.entities.item_name}`);
+      case 'ADD_ITEM': {
+        let qtyToAdd = action.entities.quantity;
+        
+        if (qtyToAdd == null && action.entities.item_name) {
+          qtyToAdd = await new Promise<number>((resolve) => {
+            setQuantityPrompt({ itemName: action.entities.item_name!, resolve });
+          });
+          setQuantityPrompt(null);
+        }
+        
+        const finalEntities = { ...action.entities, quantity: qtyToAdd };
+        await addItem(finalEntities as any);
+        showToast(`Added ${finalEntities.item_name}`);
         break;
+      }
       case 'REMOVE_ITEM':
         if (action.entities?.item_name) {
           await removeItem(action.entities.item_name as string, action.entities.quantity as number | undefined);
@@ -149,6 +161,35 @@ function App() {
 
       {isProcessing && (
         <div className="processing">Processing...</div>
+      )}
+
+      {quantityPrompt && (
+        <div className="qty-prompt-overlay">
+          <div className="qty-prompt-modal">
+            <h3>How many {quantityPrompt.itemName}?</h3>
+            <p>You didn't specify a quantity.</p>
+            <div className="qty-prompt-buttons">
+              {[1, 2, 6, 12].map(num => (
+                <button key={num} onClick={() => quantityPrompt.resolve(num)}>
+                  {num}
+                </button>
+              ))}
+            </div>
+            <form 
+              className="qty-prompt-custom" 
+              onSubmit={e => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const input = form.elements.namedItem('qty') as HTMLInputElement;
+                const val = parseInt(input.value, 10);
+                if (val > 0) quantityPrompt.resolve(val);
+              }}
+            >
+              <input type="number" name="qty" placeholder="Custom" min="1" required />
+              <button type="submit">Add</button>
+            </form>
+          </div>
+        </div>
       )}
 
       {suggestions && (
