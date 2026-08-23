@@ -34,6 +34,12 @@ function App() {
         <VoiceInput onCommand={handleCommand} />
       </section>
 
+      {lastCommand && (
+        <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#e3f2fd', borderRadius: '8px', borderLeft: '4px solid #2196f3' }}>
+          <strong>You said:</strong> "{lastCommand.text}"
+        </div>
+      )}
+
       {isProcessing && (
         <div style={{ marginTop: '20px', textAlign: 'center', fontStyle: 'italic', color: '#666' }}>
           🤔 Thinking... (Parsing intent)
