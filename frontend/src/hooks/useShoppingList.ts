@@ -20,7 +20,7 @@ export function useShoppingList() {
   const fetchItems = useCallback(async () => {
     try {
       setLoading(true);
-      const { data: { session }, error: authError } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       
       let userId = session?.user?.id;
       if (!userId) {
