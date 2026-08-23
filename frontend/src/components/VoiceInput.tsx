@@ -19,9 +19,20 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({ onCommand }) => {
     stopListening 
   } = useVoiceInput(language);
 
-  // When listening stops and we have a final transcript, fire the command
+  // Track whether we've already dispatched for the current transcript
+  const hasFiredRef = React.useRef(false);
+
+  // Reset the guard when listening starts
   useEffect(() => {
-    if (!isListening && finalTranscript) {
+    if (isListening) {
+      hasFiredRef.current = false;
+    }
+  }, [isListening]);
+
+  // When listening stops and we have a final transcript, fire the command ONCE
+  useEffect(() => {
+    if (!isListening && finalTranscript && !hasFiredRef.current) {
+      hasFiredRef.current = true;
       onCommand(finalTranscript.trim(), language);
     }
   }, [isListening, finalTranscript, language, onCommand]);
