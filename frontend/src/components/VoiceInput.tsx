@@ -3,9 +3,10 @@ import { useVoiceInput } from '../hooks/useVoiceInput';
 
 interface VoiceInputProps {
   onCommand: (command: string, language: string) => void;
+  isProcessing?: boolean;
 }
 
-export const VoiceInput: React.FC<VoiceInputProps> = ({ onCommand }) => {
+export const VoiceInput: React.FC<VoiceInputProps> = ({ onCommand, isProcessing = false }) => {
   const [language, setLanguage] = useState('en-US');
   const [textFallback, setTextFallback] = useState('');
   
@@ -46,63 +47,63 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({ onCommand }) => {
   };
 
   return (
-    <div className="voice-input-container" style={{ padding: '20px', textAlign: 'center' }}>
-      <div style={{ marginBottom: '10px' }}>
-        <select value={language} onChange={(e) => setLanguage(e.target.value)}>
-          <option value="en-US">English (US)</option>
-          <option value="es-ES">Spanish</option>
-          <option value="hi-IN">Hindi</option>
-        </select>
-      </div>
+    <div className="voice-input">
+      <select 
+        className="voice-input__lang-select"
+        value={language} 
+        onChange={(e) => setLanguage(e.target.value)}
+      >
+        <option value="en-US">English</option>
+        <option value="es-ES">Español</option>
+        <option value="hi-IN">हिन्दी</option>
+      </select>
 
       {!isSupported || error === 'not-allowed' ? (
-        <form onSubmit={handleTextSubmit}>
+        <form className="voice-input__text-form" onSubmit={handleTextSubmit}>
           <input 
+            className="voice-input__text-input"
             type="text" 
             value={textFallback}
             onChange={(e) => setTextFallback(e.target.value)}
-            placeholder="Type your command..."
-            style={{ padding: '10px', width: '80%', fontSize: '16px' }}
+            placeholder="Type a command..."
           />
-          <button type="submit" style={{ padding: '10px' }}>Send</button>
-          {error && <p style={{ color: 'red', marginTop: '5px' }}>{error === 'not-allowed' ? 'Mic access denied. Using text fallback.' : error}</p>}
+          <button className="voice-input__text-submit" type="submit">Send</button>
+          {error && (
+            <p className="voice-input__error">
+              {error === 'not-allowed' ? 'Mic access denied.' : error}
+            </p>
+          )}
         </form>
       ) : (
-        <div>
-          <button 
-            onClick={isListening ? stopListening : startListening}
-            style={{
-              padding: '20px',
-              borderRadius: '50%',
-              backgroundColor: isListening ? '#ff4444' : '#4CAF50',
-              color: 'white',
-              border: 'none',
-              width: '80px',
-              height: '80px',
-              fontSize: '24px',
-              cursor: 'pointer',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-            }}
-            aria-label={isListening ? "Stop listening" : "Start listening"}
-          >
-            🎤
-          </button>
+        <>
+          <div className="voice-input__mic-wrapper">
+            {isListening && <div className="voice-input__mic-ring" />}
+            {isProcessing && <div className="voice-input__spinner" />}
+            <button 
+              className={`voice-input__mic ${isListening ? 'voice-input__mic--listening' : isProcessing ? 'voice-input__mic--processing' : 'voice-input__mic--idle'}`}
+              onClick={isListening ? stopListening : startListening}
+              disabled={isProcessing}
+              aria-label={isProcessing ? "Processing" : isListening ? "Stop listening" : "Start listening"}
+            >
+              {isProcessing ? '⏳' : '🎤'}
+            </button>
+          </div>
           
-          <div style={{ marginTop: '20px', minHeight: '30px' }}>
+          <div>
             {isListening ? (
-              <p style={{ fontStyle: 'italic', color: '#666' }}>{transcript || 'Listening...'}</p>
+              <p className="voice-input__live-text">{transcript || 'Listening...'}</p>
             ) : error ? (
-              <p style={{ color: 'red' }}>Error: {error}</p>
+              <p className="voice-input__error">{error}</p>
             ) : (
-              <p style={{ color: '#888' }}>Tap the mic and speak</p>
+              <p className="voice-input__hint">Tap to speak</p>
             )}
           </div>
-        </div>
+        </>
       )}
       
-      {/* Accessibility live region for announcing actions */}
-      <div aria-live="polite" className="sr-only" style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', border: 0 }}>
-        {isListening ? 'Microphone is on and listening' : 'Microphone is off'}
+      {/* Accessibility live region */}
+      <div aria-live="polite" style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
+        {isListening ? 'Microphone is on' : 'Microphone is off'}
       </div>
     </div>
   );

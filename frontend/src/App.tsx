@@ -19,8 +19,15 @@ function App() {
   const [nluResponse, setNluResponse] = useState<NluResponse | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const { items, loading, error, addItem, removeItem, togglePurchased, clearList, checkoutPurchasedItems } = useShoppingList();
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
 
   /** Execute a single parsed NLU action against the database */
   const executeAction = async (action: NluAction): Promise<void> => {
@@ -29,16 +36,16 @@ function App() {
     switch (action.intent) {
       case 'ADD_ITEM':
         await addItem(action.entities as any);
+        showToast(`Added ${action.entities.item_name}`);
         break;
       case 'REMOVE_ITEM':
         if (action.entities?.item_name) {
           await removeItem(action.entities.item_name as string, action.entities.quantity as number | undefined);
+          showToast(`Removed ${action.entities.item_name}`);
         }
         break;
       case 'UPDATE_QUANTITY':
         if (action.entities?.item_name && action.entities?.quantity != null) {
-          // UPDATE_QUANTITY sets the quantity to an absolute value
-          // We find the item and update it directly
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
             const { data: matched } = await supabase
@@ -53,12 +60,14 @@ function App() {
                 .from('shopping_list_items')
                 .update({ quantity: action.entities.quantity })
                 .eq('id', matched[0].id);
+              showToast(`Updated ${action.entities.item_name} → ${action.entities.quantity}`);
             }
           }
         }
         break;
       case 'CLEAR_LIST':
         await clearList();
+        showToast('List cleared');
         break;
       case 'GET_SUGGESTIONS': {
         const { data: { user } } = await supabase.auth.getUser();
@@ -84,8 +93,6 @@ function App() {
             if (data.suggestions) {
               setSuggestions(data.suggestions);
             }
-          } else {
-            console.error("Failed to fetch suggestions", await res.text());
           }
         }
         break;
@@ -99,7 +106,6 @@ function App() {
     setNluResponse(null);
     setSuggestions(null);
 
-    // Build lightweight list context for the LLM
     const currentList = items.map(item => ({
       name: item.name,
       quantity: item.quantity,
@@ -108,14 +114,13 @@ function App() {
 
     const result = await processCommand(command, language, SUPABASE_URL, SUPABASE_ANON_KEY, currentList);
     
-    // Execute ALL actions sequentially
     if (result && result.actions && result.actions.length > 0) {
       try {
         for (const action of result.actions) {
           await executeAction(action);
         }
       } catch (e) {
-        console.error("Failed to execute actions against DB:", e);
+        console.error("Failed to execute actions:", e);
       }
     }
     
@@ -124,53 +129,53 @@ function App() {
   }, [addItem, removeItem, clearList, items]);
 
   return (
-    <main style={{ maxWidth: '600px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <header style={{ textAlign: 'center', marginBottom: '40px' }}>
-        <h1>🛒 Voice Shopping Assistant</h1>
-        <p>Tap the microphone and say something like "Add milk" or "What should I buy?".</p>
+    <main className="app">
+      <header className="header">
+        <h1 className="header__title">
+          <span className="header__title-icon">🛒</span>
+          Voice Shopper
+        </h1>
+        <p className="header__subtitle">Speak to manage your shopping list</p>
       </header>
 
-      <section>
-        <VoiceInput onCommand={handleCommand} />
-      </section>
+      <VoiceInput onCommand={handleCommand} isProcessing={isProcessing} />
 
       {lastCommand && (
-        <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#e3f2fd', borderRadius: '8px', borderLeft: '4px solid #2196f3' }}>
-          <strong>You said:</strong> "{lastCommand.text}"
+        <div className="transcript">
+          <span className="transcript__label">You said</span>
+          "{lastCommand.text}"
         </div>
       )}
 
       {isProcessing && (
-        <div style={{ marginTop: '20px', textAlign: 'center', fontStyle: 'italic', color: '#666' }}>
-          🤔 Thinking...
-        </div>
+        <div className="processing">Processing...</div>
       )}
 
       {suggestions && (
-        <section style={{ marginTop: '30px', padding: '20px', backgroundColor: '#fdf3e5', borderRadius: '8px', border: '1px solid #ffcc80' }}>
-          <h3 style={{ marginTop: 0, color: '#e65100' }}>💡 Suggestions</h3>
-          <ul style={{ listStyle: 'none', padding: 0 }}>
+        <section className="suggestions">
+          <div className="suggestions__header">
+            <span>💡</span> Suggestions
+          </div>
+          <ul className="suggestions__list">
             {suggestions.map((sug, i) => (
-              <li key={i} style={{ marginBottom: '15px', paddingBottom: '10px', borderBottom: '1px solid #ffe0b2' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <strong style={{ fontSize: '18px' }}>{sug.item_name}</strong>
-                    <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#666' }}>{sug.reason}</p>
-                  </div>
-                  <button 
-                    onClick={() => addItem({ item_name: sug.item_name })}
-                    style={{ backgroundColor: '#ff9800', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                  >
-                    Add
-                  </button>
+              <li key={i} className="suggestions__item">
+                <div>
+                  <div className="suggestions__item-name">{sug.item_name}</div>
+                  <div className="suggestions__item-reason">{sug.reason}</div>
                 </div>
+                <button 
+                  className="suggestions__add-btn"
+                  onClick={() => addItem({ item_name: sug.item_name })}
+                >
+                  + Add
+                </button>
               </li>
             ))}
           </ul>
         </section>
       )}
 
-      <section style={{ marginTop: '30px' }}>
+      <section className="list-section">
         <ShoppingList 
           items={items} 
           loading={loading} 
@@ -181,27 +186,30 @@ function App() {
         />
       </section>
 
-      {/* Debug view for the NLU result - helpful during development */}
       {nluResponse && !isProcessing && (
-        <section style={{ marginTop: '40px', padding: '20px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
-          <h3>Debug: Last NLU Result ({nluResponse.actions.length} action{nluResponse.actions.length !== 1 ? 's' : ''})</h3>
-          {nluResponse.actions.map((action, i) => (
-            <div key={i} style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #ddd' }}>
-              <p><strong>Action {i + 1}:</strong> {action.intent}</p>
-              <pre style={{ backgroundColor: '#e0e0e0', padding: '10px', borderRadius: '4px', overflowX: 'auto', margin: '5px 0' }}>
-                {JSON.stringify(action.entities, null, 2)}
-              </pre>
-              <p style={{ margin: 0, fontSize: '14px', color: '#666' }}>Confidence: {action.confidence}</p>
-              
-              {action.confidence < 0.6 && (
-                <div style={{ padding: '10px', marginTop: '10px', backgroundColor: '#ffebee', color: '#c62828', borderRadius: '4px' }}>
-                  Low confidence — skipped execution.
+        <div className="debug">
+          <button className="debug__toggle" onClick={() => setDebugOpen(!debugOpen)}>
+            Debug ({nluResponse.actions.length} action{nluResponse.actions.length !== 1 ? 's' : ''})
+            <span>{debugOpen ? '▲' : '▼'}</span>
+          </button>
+          {debugOpen && (
+            <div className="debug__content">
+              {nluResponse.actions.map((action, i) => (
+                <div key={i} className="debug__action">
+                  <div className="debug__intent">{action.intent}</div>
+                  <pre className="debug__entities">{JSON.stringify(action.entities, null, 2)}</pre>
+                  <div className="debug__confidence">Confidence: {action.confidence}</div>
+                  {action.confidence < 0.6 && (
+                    <div className="debug__low-conf">Low confidence — skipped.</div>
+                  )}
                 </div>
-              )}
+              ))}
             </div>
-          ))}
-        </section>
+          )}
+        </div>
       )}
+
+      {toast && <div className="toast">{toast}</div>}
     </main>
   );
 }
