@@ -19,6 +19,25 @@ When users provide ambiguous commands (e.g., *"Add bananas"* without specifying 
 
 ---
 
+## Current & Upcoming Features
+
+### Currently Implemented
+- **Voice Command Recognition**: Instantly add or remove items using the Web Speech API.
+- **Dual-Layer NLP**: A hybrid approach using lightning-fast regex for common phrases and a Gemini AI fallback for complex commands.
+- **Multilingual Support**: Supports English, Spanish, and Hindi.
+- **Smart Product Recommendations**: Generates personalized shopping suggestions based on your past purchase history.
+- **Interactive Ambiguity Resolution**: Pauses to ask "How many?" if you request plural items without a quantity.
+- **Auto-Categorization**: Automatically categorizes items (e.g., dairy, produce) using Open Food Facts and Gemini.
+- **Premium UI**: Clean, mobile-first design with micro-animations and a sleek Purple & White theme.
+- **Cloud Hosted Backend**: Fully deployed via Supabase Edge Functions and PostgreSQL.
+
+### In Progress
+- **Seasonal Recommendations**: Instructing the AI to recommend items based on the current season or holidays.
+- **Smart Substitutes**: Ask the app "What can I substitute for milk?" to get instant alternatives.
+- **Voice-Activated Search & Filtering**: Query the product catalog by voice (e.g., "Find toothpaste under $5").
+
+---
+
 ## Architecture
 The application follows a modern serverless architecture:
 
