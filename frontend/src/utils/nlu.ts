@@ -35,9 +35,16 @@ export function parseFastPath(transcript: string, language: string): NluResult |
   // Matches "remove milk", "take off milk", "remove milk from my list"
   const removeMatch = normalized.match(/^(?:remove|delete|take off) (.*?)(?: from my list)?$/);
   if (removeMatch && removeMatch[1]) {
+    const itemStr = removeMatch[1];
+    
+    // Safety check: if it contains conjunctions or is too long, fallback to LLM
+    if (itemStr.includes(' and ') || itemStr.includes(' or ') || itemStr.includes(' put ') || itemStr.length > 30) {
+      return null;
+    }
+
     return {
       intent: 'REMOVE_ITEM',
-      entities: { item_name: removeMatch[1] },
+      entities: { item_name: itemStr },
       confidence: 1.0,
       detected_language: language,
     };
@@ -45,14 +52,14 @@ export function parseFastPath(transcript: string, language: string): NluResult |
 
   // 3. Add simple item with optional quantity
   // Matches "add 5 apples", "buy milk", "get 2 bottles of water"
-  const addMatch = normalized.match(/^(?:add|buy|get|i need) (?:(\d+)\s+)?(?:(bottles? of|cans? of|boxes? of|gallons? of)\s+)?(.*?)$/);
+  const addMatch = normalized.match(/^(?:add|buy|get|i need) (?:(\d+)\s+)?(?:(bottles? of|cans? of|boxes? of|gallons? of|packs? of|bags? of|liters? of|grams? of|kg? of)\s+)?(.*?)$/);
   if (addMatch && addMatch[3]) {
     const qtyStr = addMatch[1];
     const unitStr = addMatch[2];
     const itemStr = addMatch[3];
     
     // Safety check - if it's too complex or has "under", "cheap" (search intents), fallback
-    if (itemStr.includes('under') || itemStr.includes('find') || itemStr.length > 30) {
+    if (itemStr.includes('under') || itemStr.includes('find') || itemStr.includes(' and ') || itemStr.length > 30) {
       return null;
     }
 

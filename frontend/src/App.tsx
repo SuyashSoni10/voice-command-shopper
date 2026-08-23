@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './App.css';
 import { VoiceInput } from './components/VoiceInput';
-import { processCommand, NluResult } from './utils/nlu';
+import { processCommand, type NluResult } from './utils/nlu';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -11,7 +11,7 @@ function App() {
   const [nluResult, setNluResult] = useState<NluResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleCommand = async (command: string, language: string) => {
+  const handleCommand = React.useCallback(async (command: string, language: string) => {
     setLastCommand({ text: command, lang: language });
     setIsProcessing(true);
     setNluResult(null);
@@ -21,7 +21,7 @@ function App() {
     
     setNluResult(result);
     setIsProcessing(false);
-  };
+  }, []);
 
   return (
     <main style={{ maxWidth: '600px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
