@@ -4,7 +4,9 @@ import { VoiceInput } from './components/VoiceInput';
 import { ShoppingList } from './components/ShoppingList';
 import { processCommand, type NluResponse, type NluAction } from './utils/nlu';
 import { useShoppingList } from './hooks/useShoppingList';
+import { useStoreProfile } from './hooks/useStoreProfile';
 import { supabase } from './lib/supabase';
+import { Admin } from './components/Admin';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -24,8 +26,10 @@ function App() {
   const [quantityPrompt, setQuantityPrompt] = useState<{ itemName: string, resolve: (qty: number | null) => void } | null>(null);
   const [confirmAbsurdPrompt, setConfirmAbsurdPrompt] = useState<{ itemName: string, resolve: (add: boolean) => void } | null>(null);
   const [searchResults, setSearchResults] = useState<any[] | null>(null);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   const { items, loading, error, addItem, removeItem, togglePurchased, clearList, checkoutPurchasedItems } = useShoppingList();
+  const { profile } = useStoreProfile();
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -211,14 +215,25 @@ function App() {
   }, [addItem, removeItem, clearList, items]);
 
   return (
-    <main className="app">
+    <main className="app-container">
       <header className="header">
         <h1 className="header__title">
-          <span className="header__title-icon">🛒</span>
-          Voice Shopper
+          <span className="header__icon">🛒</span> 
+          {profile?.business_name || 'Voice Shopper'}
         </h1>
-        <p className="header__subtitle">Speak to manage your shopping list</p>
+        <p className="header__subtitle">
+          {profile?.description || 'Speak to manage your shopping list'}
+        </p>
+        <button 
+          onClick={() => setShowAdmin(true)}
+          style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', opacity: 0.5 }}
+          aria-label="Admin Portal"
+        >
+          ⚙️
+        </button>
       </header>
+
+      {showAdmin && <Admin onClose={() => setShowAdmin(false)} />}
 
       <VoiceInput onCommand={handleCommand} isProcessing={isProcessing} />
 

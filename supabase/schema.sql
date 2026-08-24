@@ -48,3 +48,21 @@ CREATE POLICY "Anyone can view products" ON product_catalog FOR SELECT USING (tr
 
 -- Enable Realtime for shopping_list_items
 ALTER PUBLICATION supabase_realtime ADD TABLE shopping_list_items;
+
+-- Create store_profile table (for Owner Portal)
+CREATE TABLE store_profile (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    business_name TEXT NOT NULL,
+    description TEXT,
+    logo_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+-- Enable RLS for store_profile
+ALTER TABLE store_profile ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone can view store profile" ON store_profile FOR SELECT USING (true);
+CREATE POLICY "Anyone can insert store profile" ON store_profile FOR INSERT WITH CHECK (true);
+CREATE POLICY "Anyone can update store profile" ON store_profile FOR UPDATE USING (true);
+
+-- Allow anyone to insert/update product catalog (Admin Portal)
+CREATE POLICY "Anyone can insert products" ON product_catalog FOR INSERT WITH CHECK (true);
