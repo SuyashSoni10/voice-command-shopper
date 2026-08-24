@@ -6,7 +6,7 @@ Designed for speed and reliability, this application completely bypasses slow cl
 
 ---
 
-## 🚀 Features
+## Features
 
 - **Instant Voice Recognition**: Leverages the browser's native Web Speech API for real-time transcription.
 - **Local NLU Engine**: Zero-latency processing. No cloud LLMs, no external dependencies, and 100% privacy. 
@@ -20,11 +20,19 @@ Designed for speed and reliability, this application completely bypasses slow cl
 - **Strict Catalog Validation**: Integrates a predefined product catalog to strictly validate units (e.g., preventing users from adding a "liter of potatoes").
 - **Modern UI**: A premium, responsive React interface featuring glassmorphic micro-animations, toast notifications, and interactive suggestion chips.
 
+### 🎮 Manual Testing Guide
+Once the app is running, try the following voice commands (or manual inputs) to test the advanced features:
+- **Test Quantity Parsing**: Say *"Add half a dozen eggs"* (It will accurately add 6 eggs).
+- **Test Dimensional Math**: Say *"Add 1 kg of potatoes"*, then say *"Add 500 grams of potatoes"*. (It will automatically merge them into 1.5 kg).
+- **Test Fuzzy Matching**: Say *"Add tomaato"* (It will auto-correct to tomato).
+- **Test Conversational Follow-Ups**: Say *"Add milk"* (A banner will slide down prompting you to add cookies, cereal, or coffee).
+- **Test Smart Suggestions**: Click any of the suggested chips under the "Things to get" header to instantly add them to your cart. 
+
 ---
 
-## 🏗️ Architecture
+## Architecture
 
-The application follows a decoupled client-server architecture. 
+The application follows a decoupled client-server architecture. For a deep-dive into the Natural Language Understanding pipeline, fuzzy matching, dimensional math logic, and the exact journey of a spoken command, please read the **[Logic & Architecture Documentation](logic/logic_documentation.md)**.
 
 ```mermaid
 graph TD
@@ -66,7 +74,7 @@ The backend stores shopping lists in an in-memory dictionary. To handle rapid, c
 
 ---
 
-## 🛠️ Project Setup
+## Project Setup
 
 Follow these steps to run the complete stack locally on your machine.
 
@@ -102,7 +110,7 @@ The UI will be accessible at `http://localhost:5173`.
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ### Automated Test Suite
 The backend includes a comprehensive, edge-case hardened test suite to verify the NLU logic and concurrency safety.
@@ -110,10 +118,3 @@ The backend includes a comprehensive, edge-case hardened test suite to verify th
 cd backend
 python test_suite.py
 ```
-
-### Manual Testing Guide
-Once the app is running, try the following voice commands to test the advanced features:
-- **Test Quantity Parsing**: Say *"Add half a dozen eggs"* (It will accurately add 6 eggs).
-- **Test Dimensional Math**: Say *"Add 1 kg of potatoes"*, then say *"Add 500 grams of potatoes"*. (It will automatically merge them into 1.5 kg).
-- **Test Fuzzy Matching**: Say *"Add tomaato"* (It will auto-correct to tomato).
-- **Test Conversational Follow-Ups**: Say *"Add milk"* (A banner will slide down prompting you to add cookies, cereal, or coffee).
