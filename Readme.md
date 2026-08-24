@@ -104,8 +104,16 @@ The UI will be accessible at `http://localhost:5173`.
 
 ## 🧪 Testing
 
+### Automated Test Suite
 The backend includes a comprehensive, edge-case hardened test suite to verify the NLU logic and concurrency safety.
 ```bash
 cd backend
 python test_suite.py
 ```
+
+### Manual Testing Guide
+Once the app is running, try the following voice commands to test the advanced features:
+- **Test Quantity Parsing**: Say *"Add half a dozen eggs"* (It will accurately add 6 eggs).
+- **Test Dimensional Math**: Say *"Add 1 kg of potatoes"*, then say *"Add 500 grams of potatoes"*. (It will automatically merge them into 1.5 kg).
+- **Test Fuzzy Matching**: Say *"Add tomaato"* (It will auto-correct to tomato).
+- **Test Conversational Follow-Ups**: Say *"Add milk"* (A banner will slide down prompting you to add cookies, cereal, or coffee).
