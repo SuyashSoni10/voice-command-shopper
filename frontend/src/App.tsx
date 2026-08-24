@@ -22,6 +22,7 @@ export default function Page() {
   const [transcript, setTranscript] = useState('')
   const [toasts, setToasts] = useState<Toast[]>([])
   const [manualOpen, setManualOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
   const [manualName, setManualName] = useState('')
   const [manualQty, setManualQty] = useState('1')
   const recognitionRef = useRef<any>(null)
@@ -127,7 +128,7 @@ export default function Page() {
 
   return <main className="app-shell">
     <div className="ambient ambient-one" /><div className="ambient ambient-two" />
-    <header className="topbar"><div className="brand"><div className="brand-mark"><Check size={18} strokeWidth={3} /></div><span>LISTEN<span className="brand-dot">.</span></span></div><div className="header-actions"><button className="icon-button" aria-label="More options"><MoreHorizontal size={19} /></button><button className="clear-button" onClick={clearList}><Trash2 size={15} /> Clear list</button></div></header>
+    <header className="topbar"><div className="brand"><div className="brand-mark"><Check size={18} strokeWidth={3} /></div><span>LISTEN<span className="brand-dot">.</span></span></div><div className="header-actions"><button className="icon-button" aria-label="More options" onClick={() => setAboutOpen(true)}><MoreHorizontal size={19} /></button><button className="clear-button" onClick={clearList}><Trash2 size={15} /> Clear list</button></div></header>
     <section className="content"><div className="eyebrow"><span className="eyebrow-line" /> YOUR SHOPPING LIST <span className="eyebrow-line" /></div><div className="title-row"><div><h1>Things to get</h1><p>{items.length} {items.length === 1 ? 'item' : 'items'} on your list <span className={`status-dot ${syncStatus}`} aria-label={syncStatus === 'synced' ? 'Synced' : 'Offline'} /> {syncStatus === 'synced' ? 'synced just now' : 'sync unavailable'}</p></div><button className="add-button" onClick={() => setManualOpen(true)}><Plus size={18} /> Add item</button></div>
       {suggestions.length > 0 && <div className="suggestions-track">
         {suggestions.map((s) => (
@@ -140,6 +141,25 @@ export default function Page() {
     </section>
     <div className="voice-dock"><div className={`transcript ${transcript ? 'visible' : ''}`}>{transcript || 'Tap to speak'}</div><button className={`mic-button ${listening ? 'is-listening' : ''}`} onClick={listening ? () => recognitionRef.current?.stop() : startListening} aria-label={listening ? 'Stop listening' : 'Start voice input'}><span className="mic-ring ring-one" /><span className="mic-ring ring-two" /><Mic size={29} strokeWidth={2.2} /></button><p className="voice-hint">{listening ? 'Listening for your command' : 'Say “add apples” or “remove milk”'}</p></div>
     {manualOpen && <div className="modal-backdrop" onClick={() => setManualOpen(false)}><form className="modal" onSubmit={submitManual} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setManualOpen(false)}><X size={18} /></button><span className="modal-label">ADD AN ITEM</span><h2>What do you need?</h2><input autoFocus value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="e.g. oat milk" /><div className="modal-row"><input type="number" min="1" value={manualQty} onChange={(event) => setManualQty(event.target.value)} /><span>pieces</span></div><button className="modal-submit" type="submit">Add to list <ChevronDown size={16} /></button></form></div>}
+    {aboutOpen && (
+      <div className="modal-backdrop" onClick={() => setAboutOpen(false)}>
+        <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <button className="modal-close" onClick={() => setAboutOpen(false)}><X size={18} /></button>
+          <h2>About Developer</h2>
+          <p style={{ color: 'var(--muted-foreground)', marginBottom: '16px', lineHeight: 1.5, fontSize: '13px' }}>
+            Voice-Based Online Shopper is an intelligent, zero-latency shopping assistant built by <strong>Suyash Soni</strong>. It features a custom Local NLU Engine that understands complex conversational voice commands without relying on slow cloud LLMs.
+          </p>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+            <a href="https://github.com/SuyashSoni10" target="_blank" rel="noreferrer" className="modal-submit" style={{ textDecoration: 'none', background: 'var(--background)', border: '1px solid var(--border)', color: 'var(--foreground)' }}>
+              Developer Profile
+            </a>
+            <a href="https://github.com/SuyashSoni10/voice-command-shopper" target="_blank" rel="noreferrer" className="modal-submit" style={{ textDecoration: 'none' }}>
+              GitHub Repo
+            </a>
+          </div>
+        </div>
+      </div>
+    )}
     <div className="toast-stack" aria-live="polite">{toasts.map((toast) => <div className={`toast ${toast.tone}`} key={toast.id}>{toast.tone === 'success' ? <Check size={16} /> : <CircleHelp size={16} />}{toast.message}</div>)}</div>
   </main>
 }
