@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+thefuzz
+python-Levenshtein
+python-dotenv
+pydantic
