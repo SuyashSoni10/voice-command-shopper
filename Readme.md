@@ -12,6 +12,9 @@ Designed for speed and reliability, this application completely bypasses slow cl
 - **Local NLU Engine**: Zero-latency processing. No cloud LLMs, no external dependencies, and 100% privacy. 
 - **Advanced Quantity Parsing**: Intelligently parses fractions, decimals, and natural aliases (e.g., `"half a dozen" -> 6`, `"0.5 kg" -> 0.5`).
 - **Multi-Item Commands**: Supports compound instructions separated by "and" (e.g., *"Add apples and remove bananas"*).
+- **Smart Conversational Follow-Ups**: Evaluates cart additions in real-time against a predefined relational catalog to dynamically prompt the user with highly relevant follow-up items.
+- **Fuzzy Catalog Matching**: Employs Levenshtein distance (`thefuzz`) to seamlessly auto-correct misheard or misspelled item names.
+- **Dimensional Math Engine**: Intelligently converts, normalizes, and sums overlapping items across different unit dimensions (e.g., adding `500 g` to `1 kg` seamlessly merges to `1.5 kg`).
 - **Smart Suggestions**: Automatically computes frequently and recently bought items to populate a smart suggestion UI track.
 - **Concurrency-Safe**: Backend state is fully thread-safe, utilizing per-session `asyncio.Lock` structures to prevent race conditions during parallel updates.
 - **Strict Catalog Validation**: Integrates a predefined product catalog to strictly validate units (e.g., preventing users from adding a "liter of potatoes").

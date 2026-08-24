@@ -108,5 +108,20 @@ Once the backend updates the in-memory dictionary, the HTTP `POST /api/nlu` requ
 
 ---
 
+## 6. Phase 6: Conversational Follow-Ups & Smart Prompts
+
+To increase cart additions and provide a more intelligent user experience, the backend dynamically calculates related follow-up items immediately after a successful addition.
+
+### Step 1: Relationship Mapping
+The `catalog.py` maintains a `RELATED_ITEMS` dictionary that maps base items to highly associated counterparts (e.g., `milk -> [cookies, cereal, coffee]`). 
+
+### Step 2: Contextual Filtering
+When `POST /api/items` is invoked, the backend retrieves the newly added item's related follow-ups. It then cross-references these against the user's current shopping list. Any follow-up item that the user *already* has on their list is proactively filtered out, ensuring the app never suggests an item they just added or already planned to buy.
+
+### Step 3: Interactive UI Banner
+The endpoint returns a modified schema containing both the added item data and the filtered array of `follow_ups`. The React frontend intercepts this array and mounts an interactive `follow-up-banner` component. This allows the user to perform a 1-tap addition of related items (e.g., *"You added milk. Also add: [Cookies] [Cereal]"*), entirely bypassing the need for additional voice commands or manual typing.
+
+---
+
 ## Conclusion
 By shifting entirely to a local deterministic architecture, the application achieves 0-latency execution, perfect testability, and high mathematical rigor, all without relying on unpredictable or hallucination-prone Cloud LLMs. The word interpretation relies on powerful regex, backed by robust fuzzy matching and a heavily structured catalog schema.
