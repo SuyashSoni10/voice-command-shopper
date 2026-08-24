@@ -1,120 +1,75 @@
-# Voice-Based Online Shopper 🛒
+# Voice-Based Online Shopper
 
-A modern, voice-first shopping list application designed to make managing your groceries and daily needs as easy as speaking. Built with React, Supabase, and powered by Google's Gemini AI.
+A lightning-fast, privacy-first web application that allows users to manage their shopping lists using conversational voice commands. 
 
-## Table of Contents
-1. [Overview](#overview)
-2. [Architecture](#architecture)
-3. [NLU Pipeline (Natural Language Understanding)](#nlu-pipeline)
-4. [Database Schema (Supabase)](#database-schema)
-5. [The Role of AI (Gemini)](#the-role-of-ai)
-6. [UI & Theme](#ui--theme)
+Designed for speed and reliability, this application completely bypasses slow cloud LLMs. It uses a custom **Local Python NLU Engine** with advanced regex parsing and fuzzy string matching to instantly understand complex voice commands like *"Add half a dozen eggs and 1.5 kg of potatoes"*.
 
 ---
 
-## Overview
-The Voice-Based Online Shopper app allows users to seamlessly manage their shopping lists using voice commands. By tapping the microphone, a user can say conversational phrases like *"I need to buy milk"* or *"Remove the apples from my list"*, and the app will instantly translate that speech into actionable updates. 
+## 🚀 Features
 
-When users provide ambiguous commands (e.g., *"Add bananas"* without specifying how many), the app intelligently pauses to ask for clarification, providing quick-tap options to resolve the ambiguity.
-
----
-
-## Current & Upcoming Features
-
-### Currently Implemented
-- **Voice Command Recognition**: Instantly add or remove items using the Web Speech API.
-- **Dual-Layer NLP**: A hybrid approach using lightning-fast regex for common phrases and a Gemini AI fallback for complex commands.
-- **Multilingual Support**: Supports English, Spanish, and Hindi.
-- **Smart Product Recommendations**: Generates personalized shopping suggestions based on your past purchase history.
-- **Interactive Ambiguity Resolution**: Pauses to ask "How many?" if you request plural items without a quantity.
-- **Auto-Categorization**: Automatically categorizes items (e.g., dairy, produce) using Open Food Facts and Gemini.
-- **Premium UI**: Clean, mobile-first design with micro-animations and a sleek Purple & White theme.
-- **Cloud Hosted Backend**: Fully deployed via Supabase Edge Functions and PostgreSQL.
-
-### In Progress
-- **Seasonal Recommendations**: Instructing the AI to recommend items based on the current season or holidays.
-- **Smart Substitutes**: Ask the app "What can I substitute for milk?" to get instant alternatives.
-- **Voice-Activated Search & Filtering**: Query the product catalog by voice (e.g., "Find toothpaste under $5").
+- **Instant Voice Recognition**: Leverages the browser's native Web Speech API for real-time transcription.
+- **Local NLU Engine**: Zero-latency processing. No cloud LLMs, no external dependencies, and 100% privacy. 
+- **Advanced Quantity Parsing**: Intelligently parses fractions, decimals, and natural aliases (e.g., `"half a dozen" -> 6`, `"0.5 kg" -> 0.5`).
+- **Multi-Item Commands**: Supports compound instructions separated by "and" (e.g., *"Add apples and remove bananas"*).
+- **Smart Suggestions**: Automatically computes frequently and recently bought items to populate a smart suggestion UI track.
+- **Concurrency-Safe**: Backend state is fully thread-safe, utilizing per-session `asyncio.Lock` structures to prevent race conditions during parallel updates.
+- **Strict Catalog Validation**: Integrates a predefined product catalog to strictly validate units (e.g., preventing users from adding a "liter of potatoes").
+- **Modern UI**: A premium, responsive React interface featuring glassmorphic micro-animations, toast notifications, and interactive suggestion chips.
 
 ---
 
-## Architecture
-The application follows a modern serverless architecture:
+## 🏗️ Architecture
 
-- **Frontend**: React (with Vite) & TypeScript. It handles state management, voice recognition via the browser's native Web Speech API, and local natural language parsing.
-- **Backend (Database)**: Supabase (PostgreSQL). Provides real-time database capabilities, user authentication, and Row Level Security (RLS).
-- **Backend (Compute)**: Supabase Edge Functions (Deno). Hosts serverless functions to securely communicate with the Gemini AI API for complex language processing and generating smart suggestions.
+The application follows a decoupled client-server architecture. 
 
----
+```mermaid
+graph TD
+    subgraph Frontend [React / Vite]
+        UI[React Components & State]
+        Voice[Web Speech API]
+        UI <--> Voice
+    end
 
-## NLU Pipeline
-The core of the voice experience is the Natural Language Understanding (NLU) pipeline, which determines the user's intent. It uses a highly optimized **"Fast-Path then LLM Fallback"** pattern.
+    subgraph Backend [FastAPI / Python]
+        API[REST API Endpoints]
+        NLU[Regex NLU Parser]
+        Matcher[TheFuzz String Matcher]
+        Catalog[Product Catalog Data]
+        State[(In-Memory Session Store)]
+        
+        API --> NLU
+        NLU --> Matcher
+        Matcher --> Catalog
+        API <--> State
+    end
 
-### 1. The Fast-Path (Local Regex)
-When a user speaks, the transcript is first processed locally in the browser (`frontend/src/utils/nlu.ts`). 
-- The app uses regular expressions to catch common conversational structures (e.g., `"I want to buy..."`, `"Can you remove..."`, `"Clear the list"`).
-- If matched, the command is executed instantly (0 latency).
-- It is smart enough to detect missing quantities for plural items (e.g., "apples") and will return a `null` quantity, prompting the UI to ask the user "How many?".
+    Voice -- "Raw Transcript" --> API
+    API -- "Structured Actions" --> UI
+```
 
-### 2. The LLM Fallback (Gemini API)
-If the user says something complex, multi-intent, or non-standard (e.g., *"Add eggs, remove the milk, and what else do I need?"*), the fast-path safely fails, and the transcript is sent to a Supabase Edge Function (`nlu-fallback`).
-- The Edge function sends the transcript to the **Gemini 3.5 Flash** model.
-- The prompt enforces a strict JSON schema, instructing the LLM to return an array of actionable intents (`ADD_ITEM`, `REMOVE_ITEM`, `GET_SUGGESTIONS`).
-- The LLM acts as the ultimate safety net, ensuring the app almost never fails to understand human intent.
+### 1. The Frontend (React + TypeScript)
+The UI acts as the presentation and recording layer. It initiates the Web Speech API and captures the user's raw transcript. Upon receiving a transcript, it sends a payload to the backend `/api/nlu` endpoint and immediately executes the returned structured intents against the `/api/items` state endpoints.
 
----
+### 2. The Backend NLU Pipeline (FastAPI)
+When the backend receives a raw string, it processes it through a strict, deterministic pipeline:
+1. **Splitting**: The string is split into distinct fragments by conjunctions (e.g., "and").
+2. **Intent Parsing**: Highly tuned regular expressions extract the action (`ADD`, `REMOVE`, `SEARCH`), the quantity (integers, floats, or aliases), the unit (kg, grams, pieces), and the raw item name.
+3. **Fuzzy Matching**: The raw item name is cross-referenced against the `catalog.py` using `thefuzz` library to handle misspellings and plurals (e.g., `"tomaato" -> "tomato"`).
+4. **Validation**: The `restricter.py` logic verifies that the requested unit makes physical sense for the matched catalog item.
 
-## Database Schema
-The Supabase PostgreSQL database is structured around user-centric data persistence:
-
-- **`shopping_list_items`**: 
-  Stores the user's active shopping list. 
-  - `id`, `user_id`
-  - `name`, `quantity`, `unit`, `category`
-  - `purchased_at` (When the user checks the item off, this timestamp is set. If unchecked, it is null).
-  
-- **`purchase_history`**:
-  Acts as the memory bank for the user's shopping habits. When items are "checked out" or completed, they are logged here.
-  - `id`, `user_id`
-  - `item_name`, `added_at`
-  - This table is strictly used to feed historical context to the AI for generating personalized shopping suggestions.
-
----
-
-## The Role of AI
-Google's **Gemini 3.5 Flash** model is used in two critical areas to provide true "intelligence" to the application:
-
-1. **Complex Intent Parsing (NLU Fallback)**:
-   Gemini takes unstructured, messy human speech and normalizes it. It understands synonyms, multi-step instructions, and implicit context (e.g., converting "half a dozen" to `quantity: 6`). It receives the user's *current list* as context, preventing it from adding duplicates if the user mentions an item already on their list.
-
-2. **Smart Suggestions (`suggest-items` Edge Function)**:
-   When the user asks *"What am I running low on?"*, the app fetches their recent `purchase_history` and sends it to Gemini. The LLM analyzes their buying patterns, ignores items they bought today, and outputs a structured JSON list of highly contextual suggestions (e.g., *"You haven't bought milk in a week"*).
+### 3. Session State Management
+The backend stores shopping lists in an in-memory dictionary. To handle rapid, concurrent API requests from the frontend (such as processing multiple intents simultaneously), the backend uses an `X-Session-ID` header to provision a lazy-loaded `asyncio.Lock` for every unique session, guaranteeing data consistency.
 
 ---
 
-## UI & Theme
-The application features a premium, modern aesthetic built with raw CSS (no heavy utility frameworks), focusing on clean visual hierarchy and micro-animations.
+## 🛠️ Project Setup
 
-- **Color Palette**: A professional **Purple & White** theme. The background is a clean `var(--bg)` white, while the primary accent is a vibrant purple (`#7c3aed`), conveying a modern and trustworthy feel.
-- **Typography**: Uses the sleek `Inter` font for high legibility. The UI relies on minimal text, preferring clear iconography and whitespace to guide the user.
-- **Interactive Micro-animations**: 
-  - The microphone button pulses with a red expanding ring while listening.
-  - When the app is processing an NLU request, the mic button morphs into a purple loading spinner.
-  - Toast notifications smoothly slide up from the bottom to confirm actions.
-- **Glassmorphism Prompts**: When the app needs follow-up information (like asking for a quantity), a frosted glass overlay dims the background, focusing the user's attention on the required input.
-- **Responsive Design**: The app is built mobile-first, utilizing a centered max-width layout that feels like a native app on mobile devices while remaining elegant on desktop screens.
-
----
-
-## Project Setup
-
-Follow these steps to run the project locally on your machine.
+Follow these steps to run the complete stack locally on your machine.
 
 ### Prerequisites
 - Node.js (v18+)
-- A [Supabase](https://supabase.com/) account
-- A [Google Gemini](https://aistudio.google.com/) API Key
-- Supabase CLI installed (`npm install -g supabase`)
+- Python (3.9+)
 
 ### 1. Clone the Repository
 ```bash
@@ -122,30 +77,32 @@ git clone https://github.com/SuyashSoni10/voice-command-shopper.git
 cd voice-command-shopper
 ```
 
-### 2. Environment Variables
-Create a `.env` file in the **root** of the project and add your Supabase and Gemini credentials:
-```env
-VITE_SUPABASE_URL="your-supabase-project-url"
-VITE_SUPABASE_ANON_KEY="your-supabase-anon-key"
-SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-role-key"
-GEMINI_API_KEY="your-gemini-api-key"
+### 2. Start the Python Backend
+Open a terminal and start the FastAPI server:
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # Or `venv\Scripts\activate` on Windows
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
 ```
+The backend API will now be running on `http://localhost:8000`.
 
-### 3. Database Setup (Supabase)
-Run the provided SQL schema in your Supabase SQL Editor to create the required tables and policies:
-1. Open the `supabase/schema.sql` file.
-2. Copy the contents and execute them in your Supabase project's SQL editor.
-
-### 4. Start the Frontend
-Navigate into the `frontend` directory, install dependencies, and start the Vite development server:
+### 3. Start the React Frontend
+Open a new terminal and start the Vite development server:
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+The UI will be accessible at `http://localhost:5173`. 
 
-### 5. Deploy Edge Functions (Optional for local testing)
-If you want to test the Gemini NLU fallback or Suggestions locally, you can serve the Edge Functions via the Supabase CLI:
+---
+
+## 🧪 Testing
+
+The backend includes a comprehensive, edge-case hardened test suite to verify the NLU logic and concurrency safety.
 ```bash
-supabase functions serve nlu-fallback --env-file ../.env
+cd backend
+python test_suite.py
 ```
