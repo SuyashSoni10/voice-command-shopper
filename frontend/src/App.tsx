@@ -21,7 +21,9 @@ function App() {
   const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
   const [debugOpen, setDebugOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [quantityPrompt, setQuantityPrompt] = useState<{ itemName: string, resolve: (qty: number) => void } | null>(null);
+  const [quantityPrompt, setQuantityPrompt] = useState<{ itemName: string, resolve: (qty: number | null) => void } | null>(null);
+  const [confirmAbsurdPrompt, setConfirmAbsurdPrompt] = useState<{ itemName: string, resolve: (add: boolean) => void } | null>(null);
+  const [searchResults, setSearchResults] = useState<any[] | null>(null);
 
   const { items, loading, error, addItem, removeItem, togglePurchased, clearList, checkoutPurchasedItems } = useShoppingList();
 
@@ -37,12 +39,41 @@ function App() {
     switch (action.intent) {
       case 'ADD_ITEM': {
         let qtyToAdd = action.entities.quantity;
+        const itemName = action.entities.item_name;
         
-        if (qtyToAdd == null && action.entities.item_name) {
-          qtyToAdd = await new Promise<number>((resolve) => {
+        // 1. Catalog Validation for Absurd Inputs
+        if (itemName) {
+          const { data: catalogMatches } = await supabase
+            .from('product_catalog')
+            .select('id')
+            .ilike('name', `%${itemName}%`)
+            .limit(1);
+
+          if (!catalogMatches || catalogMatches.length === 0) {
+            const shouldAdd = await new Promise<boolean>((resolve) => {
+              setConfirmAbsurdPrompt({ itemName, resolve });
+            });
+            setConfirmAbsurdPrompt(null);
+            
+            if (!shouldAdd) {
+              showToast(`Cancelled adding ${itemName}`);
+              break;
+            }
+          }
+        }
+
+        // 2. Quantity Resolution
+        if (qtyToAdd == null && itemName) {
+          qtyToAdd = await new Promise<number | null>((resolve) => {
             setQuantityPrompt({ itemName: action.entities.item_name!, resolve });
           });
           setQuantityPrompt(null);
+        }
+
+        if (qtyToAdd === null) {
+          // User cancelled the prompt
+          showToast(`Cancelled adding ${action.entities.item_name}`);
+          break;
         }
         
         const finalEntities = { ...action.entities, quantity: qtyToAdd };
@@ -109,6 +140,45 @@ function App() {
         }
         break;
       }
+      case 'GET_SUBSTITUTES': {
+        const substituteFor = action.entities?.item_name;
+        if (!substituteFor) break;
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/suggest-items`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({ substitute_for: substituteFor })
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          if (data.suggestions) {
+            setSuggestions(data.suggestions);
+          }
+        }
+        break;
+      }
+      case 'SEARCH_ITEM': {
+        const { item_name, price_min, price_max, brand } = action.entities;
+        
+        let query = supabase.from('product_catalog').select('*');
+        
+        if (item_name) query = query.ilike('name', `%${item_name}%`);
+        if (brand) query = query.ilike('brand', `%${brand}%`);
+        if (price_min != null) query = query.gte('price', price_min);
+        if (price_max != null) query = query.lte('price', price_max);
+        
+        const { data } = await query.limit(10);
+        
+        if (data && data.length > 0) {
+          setSearchResults(data);
+        } else {
+          showToast(`No items found matching your search.`);
+        }
+        break;
+      }
     }
   };
 
@@ -166,6 +236,13 @@ function App() {
       {quantityPrompt && (
         <div className="qty-prompt-overlay">
           <div className="qty-prompt-modal">
+            <button 
+              className="qty-prompt-close" 
+              onClick={() => quantityPrompt.resolve(null)}
+              aria-label="Cancel"
+            >
+              ✕
+            </button>
             <h3>How many {quantityPrompt.itemName}?</h3>
             <p>You didn't specify a quantity.</p>
             <div className="qty-prompt-buttons">
@@ -188,6 +265,61 @@ function App() {
               <input type="number" name="qty" placeholder="Custom" min="1" required />
               <button type="submit">Add</button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {confirmAbsurdPrompt && (
+        <div className="qty-prompt-overlay">
+          <div className="qty-prompt-modal">
+            <button 
+              className="qty-prompt-close" 
+              onClick={() => confirmAbsurdPrompt.resolve(false)}
+              aria-label="Cancel"
+            >
+              ✕
+            </button>
+            <h3>Item not found!</h3>
+            <p>I couldn't find <strong>"{confirmAbsurdPrompt.itemName}"</strong> in the store catalog. Are you sure you want to add this?</p>
+            <div className="qty-prompt-buttons" style={{ marginTop: '1rem' }}>
+              <button onClick={() => confirmAbsurdPrompt.resolve(false)} style={{ background: '#f87171' }}>No, cancel</button>
+              <button onClick={() => confirmAbsurdPrompt.resolve(true)} style={{ background: 'var(--primary)' }}>Yes, add it</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {searchResults && (
+        <div className="qty-prompt-overlay">
+          <div className="qty-prompt-modal" style={{ maxHeight: '80vh', overflowY: 'auto' }}>
+            <button 
+              className="qty-prompt-close" 
+              onClick={() => setSearchResults(null)}
+              aria-label="Close"
+            >
+              ✕
+            </button>
+            <h3>Search Results</h3>
+            <ul className="suggestions__list" style={{ marginTop: '1rem' }}>
+              {searchResults.map((prod) => (
+                <li key={prod.id} className="suggestions__item">
+                  <div>
+                    <div className="suggestions__item-name" style={{ textTransform: 'capitalize' }}>{prod.name}</div>
+                    <div className="suggestions__item-reason">${prod.price.toFixed(2)} • {prod.brand || 'Generic'}</div>
+                  </div>
+                  <button 
+                    className="suggestions__add-btn"
+                    onClick={() => {
+                      addItem({ item_name: prod.name });
+                      setSearchResults(null);
+                      showToast(`Added ${prod.name}`);
+                    }}
+                  >
+                    + Add
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       )}

@@ -14,31 +14,46 @@ serve(async (req) => {
   }
 
   try {
-    const { history } = await req.json()
+    const { history, substitute_for } = await req.json()
     const apiKey = Deno.env.get('GEMINI_API_KEY')
     
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY is missing from environment variables")
     }
 
-    if (!history || !Array.isArray(history)) {
-      throw new Error("Missing or invalid 'history' array in request body")
-    }
+    const currentMonth = new Date().toLocaleString('default', { month: 'long' });
 
-    const systemPrompt = `You are a smart shopping assistant.
-The user wants suggestions for what they should add to their shopping list.
-You will be provided with their recent purchase history.
+    let systemPrompt = `You are a smart shopping assistant.
+The current month is ${currentMonth}.
+You will be provided with the user's recent purchase history.
 Look at the items they have bought recently and suggest 3 to 5 items they might be running low on or might want to buy.
+CRITICAL: Prioritize seasonal or on-sale items (e.g. suggesting hot chocolate in winter or fresh berries in summer) if appropriate, and explicitly mention the season in the reason.
 Do NOT suggest items that they just bought today. Suggest common staples if their history is empty.
 Return a structured JSON list of suggestions.
 Output format exactly like this:
 {
   "suggestions": [
     {"item_name": "milk", "reason": "You usually buy milk frequently."},
-    {"item_name": "bread", "reason": "A common staple you might need."}
+    {"item_name": "strawberries", "reason": "Fresh strawberries are perfect for summer!"}
   ]
-}
-`;
+}`;
+
+    let userPrompt = `User purchase history: ${JSON.stringify(history || [])}. Generate suggestions.`;
+
+    if (substitute_for) {
+      systemPrompt = `You are a smart shopping assistant.
+The user is looking for substitutes or alternatives for the item: "${substitute_for}".
+Provide 3 to 5 good substitutes. Consider dietary alternatives (like almond milk for milk), cheaper alternatives, or functionally similar items.
+Return a structured JSON list of suggestions.
+Output format exactly like this:
+{
+  "suggestions": [
+    {"item_name": "almond milk", "reason": "A great dairy-free alternative to milk."},
+    {"item_name": "oat milk", "reason": "Creamy and perfect for coffee."}
+  ]
+}`;
+      userPrompt = `Generate substitutes for: ${substitute_for}`;
+    }
 
     // Using gemini-3.5-flash since it supports structured outputs
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`
@@ -48,7 +63,7 @@ Output format exactly like this:
         parts: [{ text: systemPrompt }]
       },
       contents: [{
-        parts: [{ text: `User purchase history: ${JSON.stringify(history)}. Generate suggestions.` }]
+        parts: [{ text: userPrompt }]
       }],
       generationConfig: {
         responseMimeType: "application/json",

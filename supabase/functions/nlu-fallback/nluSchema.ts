@@ -11,7 +11,7 @@ export const nluSchema = {
         properties: {
           intent: {
             type: "string",
-            enum: ["ADD_ITEM", "REMOVE_ITEM", "UPDATE_QUANTITY", "SEARCH_ITEM", "GET_SUGGESTIONS", "CLEAR_LIST", "UNKNOWN"]
+            enum: ["ADD_ITEM", "REMOVE_ITEM", "UPDATE_QUANTITY", "SEARCH_ITEM", "GET_SUGGESTIONS", "GET_SUBSTITUTES", "CLEAR_LIST", "UNKNOWN"]
           },
           entities: {
             type: "object",
@@ -54,6 +54,7 @@ Here are the intent categories:
 - UPDATE_QUANTITY: Change the quantity of an existing item on the list.
 - SEARCH_ITEM: Search the catalog for an item.
 - GET_SUGGESTIONS: User asking for what to buy or running low on.
+- GET_SUBSTITUTES: User asking for alternatives or substitutes for a specific item. (Requires item_name entity).
 - CLEAR_LIST: Start over or clear the list.
 - UNKNOWN: Anything else or below confidence threshold.
 
