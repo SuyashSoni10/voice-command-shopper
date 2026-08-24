@@ -1,405 +1,145 @@
-import React, { useState } from 'react';
-import './App.css';
-import { VoiceInput } from './components/VoiceInput';
-import { ShoppingList } from './components/ShoppingList';
-import { processCommand, type NluResponse, type NluAction } from './utils/nlu';
-import { useShoppingList } from './hooks/useShoppingList';
-import { useStoreProfile } from './hooks/useStoreProfile';
-import { supabase } from './lib/supabase';
-import { Admin } from './components/Admin';
+'use client'
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Check, ChevronDown, CircleHelp, Mic, MoreHorizontal, Plus, Trash2, X } from 'lucide-react'
 
-interface Suggestion {
-  item_name: string;
-  reason: string;
+type Item = { id: string | number; name: string; quantity: number; unit: string; category?: string; purchased_at?: string | null; added_at?: string }
+type Toast = { id: number; message: string; tone: 'success' | 'error' }
+
+const API = 'http://localhost:8000'
+const categoryOrder = ['Produce', 'Dairy', 'Meat', 'Pantry', 'Frozen', 'Other']
+
+function formatQuantity(item: Item) {
+  return `${item.quantity} ${item.unit || 'pieces'}`
 }
 
-function App() {
-  const [lastCommand, setLastCommand] = useState<{ text: string; lang: string } | null>(null);
-  const [nluResponse, setNluResponse] = useState<NluResponse | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
-  const [debugOpen, setDebugOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  const [quantityPrompt, setQuantityPrompt] = useState<{ itemName: string, resolve: (qty: number | null) => void } | null>(null);
-  const [confirmAbsurdPrompt, setConfirmAbsurdPrompt] = useState<{ itemName: string, resolve: (add: boolean) => void } | null>(null);
-  const [searchResults, setSearchResults] = useState<any[] | null>(null);
-  const [showAdmin, setShowAdmin] = useState(false);
+export default function Page() {
+  const [items, setItems] = useState<Item[]>([])
+  const [suggestions, setSuggestions] = useState<{name: string, score: number}[]>([])
+  const [loading, setLoading] = useState(true)
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'offline'>('synced')
+  const [listening, setListening] = useState(false)
+  const [transcript, setTranscript] = useState('')
+  const [toasts, setToasts] = useState<Toast[]>([])
+  const [manualOpen, setManualOpen] = useState(false)
+  const [manualName, setManualName] = useState('')
+  const [manualQty, setManualQty] = useState('1')
+  const recognitionRef = useRef<any>(null)
+  const transcriptRef = useRef('')
+  const toastId = useRef(0)
 
-  const { items, loading, error, addItem, removeItem, togglePurchased, clearList, checkoutPurchasedItems } = useShoppingList();
-  const { profile } = useStoreProfile();
+  const notify = useCallback((message: string, tone: Toast['tone'] = 'success') => {
+    const id = ++toastId.current
+    setToasts((current) => [...current, { id, message, tone }])
+    window.setTimeout(() => setToasts((current) => current.filter((toast) => toast.id !== id)), 3200)
+  }, [])
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  };
+  const refresh = useCallback(async () => {
+    try {
+      const [itemsRes, suggestRes] = await Promise.all([
+        fetch(`${API}/api/items`),
+        fetch(`${API}/api/suggest`)
+      ])
+      
+      if (!itemsRes.ok || !suggestRes.ok) throw new Error('Unable to load data')
+      setItems(await itemsRes.json())
+      setSuggestions(await suggestRes.json())
+      setSyncStatus('synced')
+    } catch {
+      setSyncStatus('offline')
+      notify('Could not connect to your shopping list.', 'error')
+    } finally { setLoading(false) }
+  }, [notify])
 
-  /** Execute a single parsed NLU action against the database */
-  const executeAction = async (action: NluAction): Promise<void> => {
-    if (action.confidence < 0.6) return;
+  useEffect(() => { refresh() }, [refresh])
 
-    switch (action.intent) {
-      case 'ADD_ITEM': {
-        let qtyToAdd = action.entities.quantity;
-        const itemName = action.entities.item_name;
-        
-        // 1. Catalog Validation for Absurd Inputs
-        if (itemName) {
-          const { data: catalogMatches } = await supabase
-            .from('product_catalog')
-            .select('id')
-            .ilike('name', `%${itemName}%`)
-            .limit(1);
+  const grouped = useMemo(() => {
+    const groups = new Map<string, Item[]>()
+    items.forEach((item) => {
+      const key = item.category || 'Other'
+      groups.set(key, [...(groups.get(key) || []), item])
+    })
+    return [...groups.entries()].sort(([a], [b]) => (categoryOrder.indexOf(a) + 1 || 99) - (categoryOrder.indexOf(b) + 1 || 99))
+  }, [items])
 
-          if (!catalogMatches || catalogMatches.length === 0) {
-            const shouldAdd = await new Promise<boolean>((resolve) => {
-              setConfirmAbsurdPrompt({ itemName, resolve });
-            });
-            setConfirmAbsurdPrompt(null);
-            
-            if (!shouldAdd) {
-              showToast(`Cancelled adding ${itemName}`);
-              break;
-            }
-          }
+  const addItem = async (itemName: string, quantity: number, unit = 'pieces') => {
+    const response = await fetch(`${API}/api/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item_name: itemName, quantity, unit }) })
+    if (!response.ok) throw new Error('Add failed')
+    notify(`Added ${quantity} ${unit} of ${itemName}`)
+    await refresh()
+  }
+
+  const processTranscript = async (text: string) => {
+    if (!text.trim()) return
+    try {
+      const response = await fetch(`${API}/api/nlu`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transcript: text, language: 'en' }) })
+      if (!response.ok) throw new Error('Voice command failed')
+      const result = await response.json()
+      for (const action of result.actions || []) {
+        const entity = action.entities || {}
+        if (action.intent === 'ADD_ITEM') await addItem(entity.item_name, entity.quantity || 1, entity.unit || 'pieces')
+        if (action.intent === 'REMOVE_ITEM') {
+          await fetch(`${API}/api/items/remove`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item_name: entity.item_name, quantity: entity.quantity || 1, unit: entity.unit || 'pieces' }) })
+          notify(`Removed ${entity.item_name}`); await refresh()
         }
-
-        // 2. Quantity Resolution
-        if (qtyToAdd == null && itemName) {
-          qtyToAdd = await new Promise<number | null>((resolve) => {
-            setQuantityPrompt({ itemName: action.entities.item_name!, resolve });
-          });
-          setQuantityPrompt(null);
-        }
-
-        if (qtyToAdd === null) {
-          // User cancelled the prompt
-          showToast(`Cancelled adding ${action.entities.item_name}`);
-          break;
-        }
-        
-        const finalEntities = { ...action.entities, quantity: qtyToAdd };
-        await addItem(finalEntities as any);
-        showToast(`Added ${finalEntities.item_name}`);
-        break;
+        if (action.intent === 'CLEAR_LIST') await clearList()
       }
-      case 'REMOVE_ITEM':
-        if (action.entities?.item_name) {
-          await removeItem(action.entities.item_name as string, action.entities.quantity as number | undefined);
-          showToast(`Removed ${action.entities.item_name}`);
-        }
-        break;
-      case 'UPDATE_QUANTITY':
-        if (action.entities?.item_name && action.entities?.quantity != null) {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const { data: matched } = await supabase
-              .from('shopping_list_items')
-              .select('id')
-              .eq('user_id', user.id)
-              .ilike('name', `%${action.entities.item_name}%`)
-              .limit(1);
+    } catch { notify('I could not understand that command.', 'error') }
+  }
 
-            if (matched && matched.length > 0) {
-              await supabase
-                .from('shopping_list_items')
-                .update({ quantity: action.entities.quantity })
-                .eq('id', matched[0].id);
-              showToast(`Updated ${action.entities.item_name} → ${action.entities.quantity}`);
-            }
-          }
-        }
-        break;
-      case 'CLEAR_LIST':
-        await clearList();
-        showToast('List cleared');
-        break;
-      case 'GET_SUGGESTIONS': {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: history } = await supabase
-            .from('purchase_history')
-            .select('item_name, added_at')
-            .eq('user_id', user.id)
-            .order('added_at', { ascending: false })
-            .limit(20);
-            
-          const res = await fetch(`${SUPABASE_URL}/functions/v1/suggest-items`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-            },
-            body: JSON.stringify({ history: history || [] })
-          });
-          
-          if (res.ok) {
-            const data = await res.json();
-            if (data.suggestions) {
-              setSuggestions(data.suggestions);
-            }
-          }
-        }
-        break;
-      }
-      case 'GET_SUBSTITUTES': {
-        const substituteFor = action.entities?.item_name;
-        if (!substituteFor) break;
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/suggest-items`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          },
-          body: JSON.stringify({ substitute_for: substituteFor })
-        });
-        
-        if (res.ok) {
-          const data = await res.json();
-          if (data.suggestions) {
-            setSuggestions(data.suggestions);
-          }
-        }
-        break;
-      }
-      case 'SEARCH_ITEM': {
-        const { item_name, price_min, price_max, brand } = action.entities;
-        
-        let query = supabase.from('product_catalog').select('*');
-        
-        if (item_name) query = query.ilike('name', `%${item_name}%`);
-        if (brand) query = query.ilike('brand', `%${brand}%`);
-        if (price_min != null) query = query.gte('price', price_min);
-        if (price_max != null) query = query.lte('price', price_max);
-        
-        const { data } = await query.limit(10);
-        
-        if (data && data.length > 0) {
-          setSearchResults(data);
-        } else {
-          showToast(`No items found matching your search.`);
-        }
-        break;
-      }
+  const startListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) { notify('Voice input is not supported in this browser.', 'error'); return }
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'en-US'; recognition.interimResults = true; recognition.continuous = false
+    recognition.onstart = () => { setListening(true); setTranscript('Listening...'); transcriptRef.current = '' }
+    recognition.onresult = (event: any) => {
+      const text = Array.from(event.results).map((result: any) => result[0].transcript).join('')
+      setTranscript(text)
+      transcriptRef.current = text
     }
-  };
-
-  const handleCommand = React.useCallback(async (command: string, language: string) => {
-    setLastCommand({ text: command, lang: language });
-    setIsProcessing(true);
-    setNluResponse(null);
-    setSuggestions(null);
-
-    const currentList = items.map(item => ({
-      name: item.name,
-      quantity: item.quantity,
-      unit: item.unit,
-    }));
-
-    const result = await processCommand(command, language, SUPABASE_URL, SUPABASE_ANON_KEY, currentList);
-    
-    if (result && result.actions && result.actions.length > 0) {
-      try {
-        for (const action of result.actions) {
-          await executeAction(action);
-        }
-      } catch (e) {
-        console.error("Failed to execute actions:", e);
+    recognition.onerror = () => { setListening(false); setTranscript('') ; notify('Microphone access was unavailable.', 'error') }
+    recognition.onend = () => { 
+      setListening(false); 
+      const current = transcriptRef.current;
+      if (current && current !== 'Listening...') {
+        processTranscript(current);
       }
+      transcriptRef.current = '';
     }
-    
-    setNluResponse(result);
-    setIsProcessing(false);
-  }, [addItem, removeItem, clearList, items]);
+    recognitionRef.current = recognition; recognition.start()
+  }
 
-  return (
-    <main className="app-container">
-      <header className="header">
-        <h1 className="header__title">
-          <span className="header__icon">🛒</span> 
-          {profile?.business_name || 'Voice Shopper'}
-        </h1>
-        <p className="header__subtitle">
-          {profile?.description || 'Speak to manage your shopping list'}
-        </p>
-        <button 
-          onClick={() => setShowAdmin(true)}
-          style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', opacity: 0.5 }}
-          aria-label="Admin Portal"
-        >
-          ⚙️
-        </button>
-      </header>
+  const toggle = async (item: Item) => {
+    setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, purchased_at: entry.purchased_at ? null : new Date().toISOString() } : entry))
+    try { await fetch(`${API}/api/items/${item.id}/toggle`, { method: 'PATCH' }) } catch { notify('Could not update item.', 'error'); refresh() }
+  }
 
-      {showAdmin && <Admin onClose={() => setShowAdmin(false)} />}
+  const remove = async (item: Item) => {
+    try { await fetch(`${API}/api/items/remove`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item_name: item.name, quantity: item.quantity, unit: item.unit }) }); notify(`Removed ${item.name}`); refresh() } catch { notify('Could not remove item.', 'error') }
+  }
 
-      <VoiceInput onCommand={handleCommand} isProcessing={isProcessing} />
+  async function clearList() {
+    try { await fetch(`${API}/api/items/clear`, { method: 'DELETE' }); setItems([]); notify('Shopping list cleared') } catch { notify('Could not clear list.', 'error') }
+  }
 
-      {lastCommand && (
-        <div className="transcript">
-          <span className="transcript__label">You said</span>
-          "{lastCommand.text}"
-        </div>
-      )}
+  const submitManual = async (event: React.FormEvent) => { event.preventDefault(); if (!manualName.trim()) return; try { await addItem(manualName.trim(), Number(manualQty) || 1); setManualName(''); setManualOpen(false) } catch { notify('Could not add item.', 'error') } }
 
-      {isProcessing && (
-        <div className="processing">Processing...</div>
-      )}
-
-      {quantityPrompt && (
-        <div className="qty-prompt-overlay">
-          <div className="qty-prompt-modal">
-            <button 
-              className="qty-prompt-close" 
-              onClick={() => quantityPrompt.resolve(null)}
-              aria-label="Cancel"
-            >
-              ✕
-            </button>
-            <h3>How many {quantityPrompt.itemName}?</h3>
-            <p>You didn't specify a quantity.</p>
-            <div className="qty-prompt-buttons">
-              {[1, 2, 6, 12].map(num => (
-                <button key={num} onClick={() => quantityPrompt.resolve(num)}>
-                  {num}
-                </button>
-              ))}
-            </div>
-            <form 
-              className="qty-prompt-custom" 
-              onSubmit={e => {
-                e.preventDefault();
-                const form = e.target as HTMLFormElement;
-                const input = form.elements.namedItem('qty') as HTMLInputElement;
-                const val = parseInt(input.value, 10);
-                if (val > 0) quantityPrompt.resolve(val);
-              }}
-            >
-              <input type="number" name="qty" placeholder="Custom" min="1" required />
-              <button type="submit">Add</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {confirmAbsurdPrompt && (
-        <div className="qty-prompt-overlay">
-          <div className="qty-prompt-modal">
-            <button 
-              className="qty-prompt-close" 
-              onClick={() => confirmAbsurdPrompt.resolve(false)}
-              aria-label="Cancel"
-            >
-              ✕
-            </button>
-            <h3>Item not found!</h3>
-            <p>I couldn't find <strong>"{confirmAbsurdPrompt.itemName}"</strong> in the store catalog. Are you sure you want to add this?</p>
-            <div className="qty-prompt-buttons" style={{ marginTop: '1rem' }}>
-              <button onClick={() => confirmAbsurdPrompt.resolve(false)} style={{ background: '#f87171' }}>No, cancel</button>
-              <button onClick={() => confirmAbsurdPrompt.resolve(true)} style={{ background: 'var(--primary)' }}>Yes, add it</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {searchResults && (
-        <div className="qty-prompt-overlay">
-          <div className="qty-prompt-modal" style={{ maxHeight: '80vh', overflowY: 'auto' }}>
-            <button 
-              className="qty-prompt-close" 
-              onClick={() => setSearchResults(null)}
-              aria-label="Close"
-            >
-              ✕
-            </button>
-            <h3>Search Results</h3>
-            <ul className="suggestions__list" style={{ marginTop: '1rem' }}>
-              {searchResults.map((prod) => (
-                <li key={prod.id} className="suggestions__item">
-                  <div>
-                    <div className="suggestions__item-name" style={{ textTransform: 'capitalize' }}>{prod.name}</div>
-                    <div className="suggestions__item-reason">${prod.price.toFixed(2)} • {prod.brand || 'Generic'}</div>
-                  </div>
-                  <button 
-                    className="suggestions__add-btn"
-                    onClick={() => {
-                      addItem({ item_name: prod.name });
-                      setSearchResults(null);
-                      showToast(`Added ${prod.name}`);
-                    }}
-                  >
-                    + Add
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
-
-      {suggestions && (
-        <section className="suggestions">
-          <div className="suggestions__header">
-            <span>💡</span> Suggestions
-          </div>
-          <ul className="suggestions__list">
-            {suggestions.map((sug, i) => (
-              <li key={i} className="suggestions__item">
-                <div>
-                  <div className="suggestions__item-name">{sug.item_name}</div>
-                  <div className="suggestions__item-reason">{sug.reason}</div>
-                </div>
-                <button 
-                  className="suggestions__add-btn"
-                  onClick={() => addItem({ item_name: sug.item_name })}
-                >
-                  + Add
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <section className="list-section">
-        <ShoppingList 
-          items={items} 
-          loading={loading} 
-          error={error} 
-          onToggle={togglePurchased} 
-          onDelete={removeItem} 
-          onCheckout={checkoutPurchasedItems}
-        />
-      </section>
-
-      {nluResponse && !isProcessing && (
-        <div className="debug">
-          <button className="debug__toggle" onClick={() => setDebugOpen(!debugOpen)}>
-            Debug ({nluResponse.actions.length} action{nluResponse.actions.length !== 1 ? 's' : ''})
-            <span>{debugOpen ? '▲' : '▼'}</span>
+  return <main className="app-shell">
+    <div className="ambient ambient-one" /><div className="ambient ambient-two" />
+    <header className="topbar"><div className="brand"><div className="brand-mark"><Check size={18} strokeWidth={3} /></div><span>LISTEN<span className="brand-dot">.</span></span></div><div className="header-actions"><button className="icon-button" aria-label="More options"><MoreHorizontal size={19} /></button><button className="clear-button" onClick={clearList}><Trash2 size={15} /> Clear list</button></div></header>
+    <section className="content"><div className="eyebrow"><span className="eyebrow-line" /> YOUR SHOPPING LIST <span className="eyebrow-line" /></div><div className="title-row"><div><h1>Things to get</h1><p>{items.length} {items.length === 1 ? 'item' : 'items'} on your list <span className={`status-dot ${syncStatus}`} aria-label={syncStatus === 'synced' ? 'Synced' : 'Offline'} /> {syncStatus === 'synced' ? 'synced just now' : 'sync unavailable'}</p></div><button className="add-button" onClick={() => setManualOpen(true)}><Plus size={18} /> Add item</button></div>
+      {suggestions.length > 0 && <div className="suggestions-track">
+        {suggestions.map((s) => (
+          <button key={s.name} className="suggestion-chip" onClick={() => addItem(s.name, 1)}>
+            <Plus size={14} strokeWidth={2.5} /> {s.name}
           </button>
-          {debugOpen && (
-            <div className="debug__content">
-              {nluResponse.actions.map((action, i) => (
-                <div key={i} className="debug__action">
-                  <div className="debug__intent">{action.intent}</div>
-                  <pre className="debug__entities">{JSON.stringify(action.entities, null, 2)}</pre>
-                  <div className="debug__confidence">Confidence: {action.confidence}</div>
-                  {action.confidence < 0.6 && (
-                    <div className="debug__low-conf">Low confidence — skipped.</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {toast && <div className="toast">{toast}</div>}
-    </main>
-  );
+        ))}
+      </div>}
+      {loading ? <div className="empty-state"><div className="loader" />Loading your list...</div> : grouped.length === 0 ? <div className="empty-state"><div className="empty-icon"><Check size={24} /></div><h2>Your list is clear</h2><p>Tap the microphone and say what you need.</p></div> : <div className="list-groups">{grouped.map(([category, group]) => <section className="category" key={category}><div className="category-heading"><span>{category}</span><span className="category-count">{group.length}</span></div><div className="item-stack">{group.map((item) => <article className={`item-card ${item.purchased_at ? 'purchased' : ''}`} key={item.id}><button className="check-button" aria-label={`Mark ${item.name} ${item.purchased_at ? 'not purchased' : 'purchased'}`} onClick={() => toggle(item)}>{item.purchased_at && <Check size={15} strokeWidth={3} />}</button><div className="item-copy"><span className="item-name">{item.name}</span><span className="item-added">Added {item.added_at ? new Date(item.added_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'today'}</span></div><span className="quantity-pill">{formatQuantity(item)}</span><button className="delete-button" aria-label={`Remove ${item.name}`} onClick={() => remove(item)}><Trash2 size={17} /></button></article>)}</div></section>)}</div>}
+    </section>
+    <div className="voice-dock"><div className={`transcript ${transcript ? 'visible' : ''}`}>{transcript || 'Tap to speak'}</div><button className={`mic-button ${listening ? 'is-listening' : ''}`} onClick={listening ? () => recognitionRef.current?.stop() : startListening} aria-label={listening ? 'Stop listening' : 'Start voice input'}><span className="mic-ring ring-one" /><span className="mic-ring ring-two" /><Mic size={29} strokeWidth={2.2} /></button><p className="voice-hint">{listening ? 'Listening for your command' : 'Say “add apples” or “remove milk”'}</p></div>
+    {manualOpen && <div className="modal-backdrop" onClick={() => setManualOpen(false)}><form className="modal" onSubmit={submitManual} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setManualOpen(false)}><X size={18} /></button><span className="modal-label">ADD AN ITEM</span><h2>What do you need?</h2><input autoFocus value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="e.g. oat milk" /><div className="modal-row"><input type="number" min="1" value={manualQty} onChange={(event) => setManualQty(event.target.value)} /><span>pieces</span></div><button className="modal-submit" type="submit">Add to list <ChevronDown size={16} /></button></form></div>}
+    <div className="toast-stack" aria-live="polite">{toasts.map((toast) => <div className={`toast ${toast.tone}`} key={toast.id}>{toast.tone === 'success' ? <Check size={16} /> : <CircleHelp size={16} />}{toast.message}</div>)}</div>
+  </main>
 }
-
-export default App;

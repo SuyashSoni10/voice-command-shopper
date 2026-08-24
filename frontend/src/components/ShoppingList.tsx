@@ -5,18 +5,18 @@ interface ShoppingListProps {
   items: ShoppingListItem[];
   loading: boolean;
   error: string | null;
-  onToggle: (id: string, currentPurchasedAt: string | null) => void;
+  onToggle: (id: string) => void;
   onDelete: (name: string) => void;
-  onCheckout: () => void;
 }
 
-export const ShoppingList: React.FC<ShoppingListProps> = ({ items, loading, error, onToggle, onDelete, onCheckout }) => {
+export const ShoppingList: React.FC<ShoppingListProps> = ({ items, loading, error, onToggle, onDelete }) => {
   if (loading && items.length === 0) {
     return <div className="list-loading">Loading...</div>;
   }
 
   if (error) {
-    return <div className="list-error">{error}</div>;
+    // We still render the list below, but we can show an error banner if we want
+    // Actually, App.tsx shows toasts for errors, so we can just ignore it here or show a non-blocking banner
   }
 
   if (items.length === 0) {
@@ -27,8 +27,6 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ items, loading, erro
       </div>
     );
   }
-
-  const hasPurchasedItems = items.some(item => item.purchased_at !== null);
 
   return (
     <div>
@@ -42,11 +40,11 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ items, loading, erro
               className="list-item__checkbox"
               type="checkbox" 
               checked={!!item.purchased_at}
-              onChange={() => onToggle(item.id, item.purchased_at)}
+              onChange={() => onToggle(item.id)}
             />
             <div className="list-item__info">
               <span className="list-item__name">{item.name}</span>
-              {item.category && item.category !== 'other' && (
+              {item.category && item.category !== 'uncategorized' && (
                 <span className="list-item__category">{item.category}</span>
               )}
             </div>
@@ -65,12 +63,6 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ items, loading, erro
           </li>
         ))}
       </ul>
-      
-      {hasPurchasedItems && (
-        <button className="checkout-btn" onClick={onCheckout}>
-          Checkout purchased items
-        </button>
-      )}
     </div>
   );
 };

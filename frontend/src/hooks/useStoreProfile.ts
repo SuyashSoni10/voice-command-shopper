@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+
+const API = 'http://localhost:8000';
 
 export interface StoreProfile {
   id: string;
@@ -13,16 +14,17 @@ export function useStoreProfile() {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async () => {
-    const { data } = await supabase
-      .from('store_profile')
-      .select('*')
-      .limit(1)
-      .single();
-    
-    if (data) {
-      setProfile(data);
+    try {
+      const res = await fetch(`${API}/api/profile`);
+      if (res.ok) {
+        const data = await res.json();
+        setProfile(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch profile:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -30,21 +32,18 @@ export function useStoreProfile() {
   }, []);
 
   const updateProfile = async (updates: Partial<StoreProfile>) => {
-    if (profile?.id) {
-      const { data } = await supabase
-        .from('store_profile')
-        .update(updates)
-        .eq('id', profile.id)
-        .select()
-        .single();
-      if (data) setProfile(data);
-    } else {
-      const { data } = await supabase
-        .from('store_profile')
-        .insert([{ business_name: updates.business_name || 'My Store', ...updates }])
-        .select()
-        .single();
-      if (data) setProfile(data);
+    try {
+      const res = await fetch(`${API}/api/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProfile(data);
+      }
+    } catch (err) {
+      console.error('Failed to update profile:', err);
     }
   };
 
