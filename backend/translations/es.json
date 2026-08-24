@@ -1,0 +1,37 @@
+{
+  "inputs": {
+    "y": "and",
+    "quitar": "remove",
+    "eliminar": "remove",
+    "añadir": "add",
+    "agregar": "add",
+    "comprar": "buy",
+    "kilo": "kg",
+    "kilogramo": "kg",
+    "gramo": "g",
+    "litro": "l",
+    "patata": "potato",
+    "papa": "potato",
+    "tomate": "tomato",
+    "cebolla": "onion",
+    "leche": "milk",
+    "manzana": "apple",
+    "platano": "banana",
+    "huevo": "egg",
+    "huevos": "egg",
+    "galleta": "biscuit"
+  },
+  "outputs": {
+    "potato": "patata",
+    "tomato": "tomate",
+    "onion": "cebolla",
+    "milk": "leche",
+    "apple": "manzana",
+    "banana": "platano",
+    "egg": "huevo",
+    "biscuit": "galleta",
+    "vegetable": "verdura",
+    "fruits": "fruta",
+    "dairy": "lácteos"
+  }
+}

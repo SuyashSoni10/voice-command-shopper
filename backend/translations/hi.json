@@ -1,0 +1,36 @@
+{
+  "inputs": {
+    "aur": "and",
+    "nikalo": "remove",
+    "hatao": "remove",
+    "jodo": "add",
+    "kilo": "kg",
+    "kilogram": "kg",
+    "gram": "g",
+    "litr": "l",
+    "aalu": "potato",
+    "tamatar": "tomato",
+    "pyaz": "onion",
+    "dudh": "milk",
+    "seb": "apple",
+    "kela": "banana",
+    "ande": "egg",
+    "anda": "egg",
+    "bhiskooth": "biscuit",
+    "pustak": "book"
+  },
+  "outputs": {
+    "potato": "aalu",
+    "tomato": "tamatar",
+    "onion": "pyaz",
+    "milk": "dudh",
+    "apple": "seb",
+    "banana": "kela",
+    "egg": "anda",
+    "biscuit": "bhiskooth",
+    "book": "pustak",
+    "vegetable": "sabzi",
+    "fruits": "fal",
+    "dairy": "dudh utpad"
+  }
+}
