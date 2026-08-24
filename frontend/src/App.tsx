@@ -6,7 +6,7 @@ import { Check, ChevronDown, CircleHelp, Mic, MoreHorizontal, Plus, Trash2, X } 
 type Item = { id: string | number; name: string; quantity: number; unit: string; category?: string; purchased_at?: string | null; added_at?: string }
 type Toast = { id: number; message: string; tone: 'success' | 'error' }
 
-const API = 'http://localhost:8000'
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const categoryOrder = ['Produce', 'Dairy', 'Meat', 'Pantry', 'Frozen', 'Other']
 
 function formatQuantity(item: Item) {
