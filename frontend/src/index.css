@@ -102,6 +102,69 @@ button { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 @layer base { * { outline-color: var(--ring); } }
 
+/* --- Follow Up Banner --- */
+.follow-up-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 24px 0 24px;
+  animation: toast-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+@media (max-width: 560px) {
+  .follow-up-banner { margin: 16px 14px 0 14px; }
+}
+
+.follow-up-content p {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: var(--text-main);
+}
+
+.follow-up-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.follow-up-chips button {
+  background: var(--foreground);
+  color: var(--background);
+  border: none;
+  border-radius: 99px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.follow-up-chips button:hover {
+  opacity: 0.9;
+}
+
+.follow-up-close {
+  background: transparent;
+  border: none;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.follow-up-close:hover {
+  background: var(--surface-hover);
+  color: var(--foreground);
+}
 /* --- Suggestions Track --- */
 .suggestions-track {
   display: flex;

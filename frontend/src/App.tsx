@@ -16,6 +16,7 @@ function formatQuantity(item: Item) {
 export default function Page() {
   const [items, setItems] = useState<Item[]>([])
   const [suggestions, setSuggestions] = useState<{name: string, score: number}[]>([])
+  const [followUp, setFollowUp] = useState<{triggerItem: string, suggestions: string[]} | null>(null)
   const [loading, setLoading] = useState(true)
   const [syncStatus, setSyncStatus] = useState<'synced' | 'offline'>('synced')
   const [listening, setListening] = useState(false)
@@ -66,7 +67,13 @@ export default function Page() {
   const addItem = async (itemName: string, quantity: number, unit = 'pieces') => {
     const response = await fetch(`${API}/api/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item_name: itemName, quantity, unit }) })
     if (!response.ok) throw new Error('Add failed')
+    const data = await response.json()
     notify(`Added ${quantity} ${unit} of ${itemName}`)
+    if (data.follow_ups && data.follow_ups.length > 0) {
+      setFollowUp({ triggerItem: itemName, suggestions: data.follow_ups })
+    } else {
+      setFollowUp(null)
+    }
     await refresh()
   }
 
@@ -129,6 +136,15 @@ export default function Page() {
   return <main className="app-shell">
     <div className="ambient ambient-one" /><div className="ambient ambient-two" />
     <header className="topbar"><div className="brand"><div className="brand-mark"><Check size={18} strokeWidth={3} /></div><span>LISTEN<span className="brand-dot">.</span></span></div><div className="header-actions"><button className="icon-button" aria-label="More options" onClick={() => setAboutOpen(true)}><MoreHorizontal size={19} /></button><button className="clear-button" onClick={clearList}><Trash2 size={15} /> Clear list</button></div></header>
+    {followUp && <div className="follow-up-banner">
+      <div className="follow-up-content">
+        <p>You added <strong>{followUp.triggerItem}</strong>. Also add:</p>
+        <div className="follow-up-chips">
+          {followUp.suggestions.map(s => <button key={s} onClick={() => { setFollowUp(null); addItem(s, 1); }}>+ {s}</button>)}
+        </div>
+      </div>
+      <button className="follow-up-close" onClick={() => setFollowUp(null)}><X size={14} /></button>
+    </div>}
     <section className="content"><div className="eyebrow"><span className="eyebrow-line" /> YOUR SHOPPING LIST <span className="eyebrow-line" /></div><div className="title-row"><div><h1>Things to get</h1><p>{items.length} {items.length === 1 ? 'item' : 'items'} on your list <span className={`status-dot ${syncStatus}`} aria-label={syncStatus === 'synced' ? 'Synced' : 'Offline'} /> {syncStatus === 'synced' ? 'synced just now' : 'sync unavailable'}</p></div><button className="add-button" onClick={() => setManualOpen(true)}><Plus size={18} /> Add item</button></div>
       {suggestions.length > 0 && <div className="suggestions-track">
         {suggestions.map((s) => (

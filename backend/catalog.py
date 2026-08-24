@@ -511,3 +511,17 @@ def get_all_keywords() -> List[str]:
 def resolve_unit_alias(raw_unit: str) -> Optional[str]:
     """Normalise a user-spoken unit to its canonical form, or None."""
     return UNIT_ALIASES.get(raw_unit.lower().strip())
+
+# ─── Item Relationships for Smart Suggestions ────────────────────────
+# Used by the backend to prompt follow-ups when an item is added.
+RELATED_ITEMS: Dict[str, List[str]] = {
+    "milk": ["cookies", "cereal", "coffee"],
+    "bread": ["butter", "jam", "egg"],
+    "pasta": ["tomato sauce", "cheese", "garlic"],
+    "coffee": ["sugar", "milk", "cookies"],
+    "potato": ["onion", "garlic", "tomato"],
+    "egg": ["bread", "milk", "bacon"],
+    "butter": ["bread", "milk"],
+    "cheese": ["bread", "pasta", "wine"],
+    "cereal": ["milk"],
+}

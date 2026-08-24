@@ -18,6 +18,7 @@ from catalog import (
     resolve_unit_alias,
     QUANTITY_MULTIPLIERS,
     ALL_ITEMS,
+    RELATED_ITEMS,
 )
 from restricter import validate_add_item, can_sum_units, sum_quantities
 
@@ -493,7 +494,18 @@ async def add_item(request: AddItemRequest, x_session_id: str = Header("default"
             session_id=x_session_id,
             category=result.category,
         )
-    return item
+        
+        # Calculate follow-ups
+        s_list = get_shopping_list(x_session_id)
+        current_names = {i["name"].lower() for i in s_list.values()}
+        potential_follow_ups = RELATED_ITEMS.get(result.item_name.lower(), [])
+        
+        follow_ups = []
+        for follow_up in potential_follow_ups:
+            if follow_up.lower() not in current_names:
+                follow_ups.append(follow_up)
+                
+    return {"item": item, "follow_ups": follow_ups}
 
 @app.delete("/api/items/clear")
 async def clear_items(x_session_id: str = Header("default")):
