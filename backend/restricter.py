@@ -81,7 +81,8 @@ def _resolve_item(raw_name: str) -> Tuple[Optional[CatalogItem], Optional[str]]:
     if not all_kws:
         return None, None
 
-    best, score = fuzz_process.extractOne(raw, all_kws)
+    from thefuzz import fuzz
+    best, score = fuzz_process.extractOne(raw, all_kws, scorer=fuzz.token_sort_ratio)
     if score >= FUZZY_THRESHOLD:
         return lookup_by_keyword(best), best
 
@@ -138,7 +139,7 @@ def _check_quantity_limits(quantity: Optional[float], unit: str) -> Tuple[bool, 
     Reject negative quantities and enforce the 10 000-base-unit cap.
     """
     if quantity is not None and quantity <= 0:
-        return False, "Quantity must be positive. Negative or zero quantities are not allowed."
+        return False, "invalid input: Quantity must be positive. Negative or zero quantities are not allowed."
 
     if quantity is not None:
         base_factor = UNIT_TO_BASE.get(unit, 1.0)

@@ -286,7 +286,7 @@ def parse_single_fragment(normalized: str) -> Optional[NluAction]:
     def _parse_qty_unit_item(qty_str, unit_str, item_str):
         parsed_qty = None
         if qty_str:
-            if qty_str.replace('.', '', 1).isdigit():
+            if qty_str.lstrip('-').replace('.', '', 1).isdigit():
                 parsed_qty = float(qty_str)
             else:
                 parsed_qty = word_to_num.get(qty_str)
@@ -304,7 +304,7 @@ def parse_single_fragment(normalized: str) -> Optional[NluAction]:
     # 2. Remove item
     remove_match = re.match(
         r'^(?:(?:can you |please |i want to |i need to )?(?:remove|delete|take off|drop)) '
-        r'(?:((?:\d*\.\d+|\d+)|a dozen|an dozen|a half dozen|half a dozen|half dozen|dozen|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s+)?'
+        r'(?:((?:-?\d*\.\d+|-?\d+)|a dozen|an dozen|a half dozen|half a dozen|half dozen|dozen|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s+)?'
         r'(?:(bottles?|cans?|boxes?|gallons?|packs?|bags?|liters?|litre?|l|ml|grams?|gm|g|kg?|kilos?|kilograms?)(?:\s+of)?\s+)?'
         r'(.*?)(?: from my list)?$', 
         normalized
@@ -320,7 +320,7 @@ def parse_single_fragment(normalized: str) -> Optional[NluAction]:
     # 3. Add item
     add_match = re.match(
         r'^(?:(?:i want to |i need to |can you |please )?(?:add|buy|get)|i need|i want) '
-        r'(?:((?:\d*\.\d+|\d+)|a dozen|an dozen|a half dozen|half a dozen|half dozen|dozen|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s+)?'
+        r'(?:((?:-?\d*\.\d+|-?\d+)|a dozen|an dozen|a half dozen|half a dozen|half dozen|dozen|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s+)?'
         r'(?:(bottles?|cans?|boxes?|gallons?|packs?|bags?|liters?|litre?|l|ml|grams?|gm|g|kg?|kilos?|kilograms?)(?:\s+of)?\s+)?'
         r'(.*?)$',
         normalized

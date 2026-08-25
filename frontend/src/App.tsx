@@ -24,6 +24,19 @@ function formatQuantity(item: Item) {
   return `${item.quantity} ${item.unit || ''}`.trim();
 }
 
+const unitOptions = [
+  { value: 'auto', label: 'Auto-detect unit' },
+  { value: 'piece', label: 'pieces' },
+  { value: 'kg', label: 'kg' },
+  { value: 'g', label: 'g' },
+  { value: 'l', label: 'l' },
+  { value: 'ml', label: 'ml' },
+  { value: 'bottle', label: 'bottles' },
+  { value: 'pack', label: 'packs' },
+  { value: 'box', label: 'boxes' },
+  { value: 'can', label: 'cans' }
+];
+
 export default function Page() {
   const [items, setItems] = useState<Item[]>([])
   const [suggestions, setSuggestions] = useState<{name: string, score: number}[]>([])
@@ -38,6 +51,8 @@ export default function Page() {
   const [aboutOpen, setAboutOpen] = useState(false)
   const [manualName, setManualName] = useState('')
   const [manualQty, setManualQty] = useState('1')
+  const [manualUnit, setManualUnit] = useState('auto')
+  const [unitDropdownOpen, setUnitDropdownOpen] = useState(false)
   const recognitionRef = useRef<any>(null)
   const transcriptRef = useRef('')
   const toastId = useRef(0)
@@ -142,7 +157,7 @@ export default function Page() {
     try { await fetch(`${API}/api/items/clear`, { method: 'DELETE' }); setItems([]); notify('Shopping list cleared') } catch { notify('Could not clear list.', 'error') }
   }
 
-  const submitManual = async (event: React.FormEvent) => { event.preventDefault(); if (!manualName.trim()) return; try { await addItem(manualName.trim(), Number(manualQty) || 1); setManualName(''); setManualOpen(false) } catch { notify('Could not add item.', 'error') } }
+  const submitManual = async (event: React.FormEvent) => { event.preventDefault(); if (!manualName.trim()) return; try { await addItem(manualName.trim(), Number(manualQty) || 1, manualUnit === 'auto' ? null : manualUnit); setManualName(''); setManualQty('1'); setManualUnit('auto'); setManualOpen(false) } catch { notify('Could not add item.', 'error') } }
 
   return <main className="app-shell">
     <div className="ambient ambient-one" /><div className="ambient ambient-two" />
@@ -158,7 +173,7 @@ export default function Page() {
       {loading ? <div className="empty-state"><div className="loader" />Loading your list...</div> : grouped.length === 0 ? <div className="empty-state"><div className="empty-icon"><Check size={24} /></div><h2>Your list is clear</h2><p>Tap the microphone and say what you need.</p></div> : <div className="list-groups">{grouped.map(([category, group]) => <section className="category" key={category}><div className="category-heading"><span>{category}</span><span className="category-count">{group.length}</span></div><div className="item-stack">{group.map((item) => <article className={`item-card ${item.purchased_at ? 'purchased' : ''}`} key={item.id}><div className="item-card-main"><button className="check-button" aria-label={`Mark ${item.name} ${item.purchased_at ? 'not purchased' : 'purchased'}`} onClick={() => toggle(item)}>{item.purchased_at && <Check size={15} strokeWidth={3} />}</button><div className="item-copy"><span className="item-name">{item.name}</span><span className="item-added">Added {item.added_at ? new Date(item.added_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'today'}</span></div><span className="quantity-pill">{formatQuantity(item)}</span>{itemSuggestions[item.id] && <button className="icon-button" aria-label="Toggle suggestions" onClick={() => setItemSuggestionsOpen(prev => ({...prev, [item.id]: !prev[item.id]}))}><ChevronDown size={18} style={{ transform: itemSuggestionsOpen[item.id] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} /></button>}<button className="delete-button" aria-label={`Remove ${item.name}`} onClick={() => remove(item)}><Trash2 size={17} /></button></div>{itemSuggestions[item.id] && itemSuggestionsOpen[item.id] && <div className="item-suggestions-dropdown"><p className="suggestions-title">Suggested additions:</p><div className="suggestions-list">{itemSuggestions[item.id].map(suggestion => <SuggestionRow key={suggestion} suggestion={suggestion} onAdd={addItem} />)}</div></div>}</article>)}</div></section>)}</div>}
     </section>
     <div className="voice-dock"><div className={`transcript ${transcript ? 'visible' : ''}`}>{transcript || 'Tap to speak'}</div><button className={`mic-button ${listening ? 'is-listening' : ''}`} onClick={listening ? () => recognitionRef.current?.stop() : startListening} aria-label={listening ? 'Stop listening' : 'Start voice input'}><span className="mic-ring ring-one" /><span className="mic-ring ring-two" /><Mic size={29} strokeWidth={2.2} /></button><p className="voice-hint">{listening ? 'Listening for your command' : 'Say “add apples” or “remove milk”'}</p></div>
-    {manualOpen && <div className="modal-backdrop" onClick={() => setManualOpen(false)}><form className="modal" onSubmit={submitManual} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setManualOpen(false)}><X size={18} /></button><span className="modal-label">ADD AN ITEM</span><h2>What do you need?</h2><input autoFocus value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="e.g. oat milk" /><div className="modal-row"><input type="number" min="1" value={manualQty} onChange={(event) => setManualQty(event.target.value)} /><span>pieces</span></div><button className="modal-submit" type="submit">Add to list <ChevronDown size={16} /></button></form></div>}
+    {manualOpen && <div className="modal-backdrop" onClick={() => setManualOpen(false)}><form className="modal" onSubmit={submitManual} onClick={(event) => { event.stopPropagation(); setUnitDropdownOpen(false); }}><button type="button" className="modal-close" onClick={() => setManualOpen(false)}><X size={18} /></button><span className="modal-label">ADD AN ITEM</span><h2>What do you need?</h2><input autoFocus value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="e.g. oat milk" /><div className="modal-row"><input type="number" min="1" step="any" value={manualQty} onChange={(event) => setManualQty(event.target.value)} /><div className="custom-select-wrapper"><button type="button" className={`custom-select-trigger ${unitDropdownOpen ? 'open' : ''}`} onClick={(e) => { e.stopPropagation(); setUnitDropdownOpen(!unitDropdownOpen); }}><span>{unitOptions.find(o => o.value === manualUnit)?.label || 'Auto-detect unit'}</span><ChevronDown size={14} style={{ transform: unitDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} /></button>{unitDropdownOpen && <div className="custom-select-dropdown">{unitOptions.map(opt => <button type="button" key={opt.value} className={`custom-select-option ${manualUnit === opt.value ? 'selected' : ''}`} onClick={() => { setManualUnit(opt.value); setUnitDropdownOpen(false); }}>{opt.label}</button>)}</div>}</div></div><button className="modal-submit" type="submit">Add to list <Plus size={16} strokeWidth={3} /></button></form></div>}
     {aboutOpen && (
       <div className="modal-backdrop" onClick={() => setAboutOpen(false)}>
         <div className="modal" onClick={(e) => e.stopPropagation()}>
