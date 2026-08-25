@@ -12,20 +12,20 @@ Designed for speed and reliability, this application completely bypasses slow cl
 - **Local NLU Engine**: Zero-latency processing. No cloud LLMs, no external dependencies, and 100% privacy. 
 - **Advanced Quantity Parsing**: Intelligently parses fractions, decimals, and natural aliases (e.g., `"half a dozen" -> 6`, `"0.5 kg" -> 0.5`).
 - **Multi-Item Commands**: Supports compound instructions separated by "and" (e.g., *"Add apples and remove bananas"*).
-- **Smart Conversational Follow-Ups**: Evaluates cart additions in real-time against a predefined relational catalog to dynamically prompt the user with highly relevant follow-up items.
-- **Fuzzy Catalog Matching**: Employs Levenshtein distance (`thefuzz`) to seamlessly auto-correct misheard or misspelled item names.
+- **Smart Conversational Follow-Ups**: Evaluates cart additions in real-time against a predefined relational catalog to dynamically prompt the user with highly relevant follow-up items via inline card dropdowns.
+- **Fuzzy Catalog Matching**: Employs Levenshtein distance (`token_sort_ratio`) to seamlessly auto-correct misheard or misspelled item names.
 - **Dimensional Math Engine**: Intelligently converts, normalizes, and sums overlapping items across different unit dimensions (e.g., adding `500 g` to `1 kg` seamlessly merges to `1.5 kg`).
 - **Smart Suggestions**: Automatically computes frequently and recently bought items to populate a smart suggestion UI track.
 - **Concurrency-Safe**: Backend state is fully thread-safe, utilizing per-session `asyncio.Lock` structures to prevent race conditions during parallel updates.
 - **Strict Catalog Validation**: Integrates a predefined product catalog to strictly validate units (e.g., preventing users from adding a "liter of potatoes").
 - **Modern UI**: A premium, responsive React interface featuring glassmorphic micro-animations, toast notifications, and interactive suggestion chips.
 
-### 🎮 Manual Testing Guide
+### Manual Testing Guide
 Once the app is running, try the following voice commands (or manual inputs) to test the advanced features:
 - **Test Quantity Parsing**: Say *"Add half a dozen eggs"* (It will accurately add 6 eggs).
 - **Test Dimensional Math**: Say *"Add 1 kg of potatoes"*, then say *"Add 500 grams of potatoes"*. (It will automatically merge them into 1.5 kg).
 - **Test Fuzzy Matching**: Say *"Add tomaato"* (It will auto-correct to tomato).
-- **Test Conversational Follow-Ups**: Say *"Add milk"* (A banner will slide down prompting you to add cookies, cereal, or coffee).
+- **Test Conversational Follow-Ups**: Say *"Add milk"* (An inline dropdown will appear on the milk card prompting you to add cookies, cereal, or coffee).
 - **Test Smart Suggestions**: Click any of the suggested chips under the "Things to get" header to instantly add them to your cart. 
 
 ---
