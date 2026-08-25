@@ -60,6 +60,9 @@ run_test("Add dozen eggs", "/api/nlu", {"transcript": "add dozen eggs", "languag
 run_test("Add half a dozen", "/api/nlu", {"transcript": "add half a dozen", "language": "en-US"}, expected_in_response="'rejected': True")
 # 5. Test Fuzzy Matching & Misspellings
 run_test("Fuzzy Match (tomaato)", "/api/nlu", {"transcript": "add 2 tomaato", "language": "en-US"}, expected_in_response="'item_name': 'tomato'")
+run_test("Fuzzy Match (aples)", "/api/nlu", {"transcript": "add 5 aples", "language": "en-US"}, expected_in_response="'item_name': 'apple'")
+run_test("Fuzzy Match (bananana)", "/api/nlu", {"transcript": "add 1 bananana", "language": "en-US"}, expected_in_response="'item_name': 'banana'")
+run_test("Fuzzy Match (potatos)", "/api/nlu", {"transcript": "add 3 potatos", "language": "en-US"}, expected_in_response="'item_name': 'potato'")
 
 # 6. Test Partial Removal (Removing 200g from 1.5kg of potatoes)
 run_test("Partial Remove (200g of potato)", "/api/items/remove", {"item_name": "potato", "quantity": 200, "unit": "g"}, expected_in_response="'quantity': 1.3, 'unit': 'kg'")
@@ -67,7 +70,30 @@ run_test("Partial Remove (200g of potato)", "/api/items/remove", {"item_name": "
 # 7. Test Partial Removal going below zero (Removes item entirely)
 run_test("Partial Remove Overdraft (Remove 2kg of potato)", "/api/items/remove", {"item_name": "potato", "quantity": 2, "unit": "kg"}, expected_in_response="'removed': True")
 
-# 8. Verify list is correct at the end
+# 7.1. Additional Partial Removal & Overdraft Tests
+requests.post(f"{BASE_URL}/api/items", json={"item_name": "onion", "quantity": 2, "unit": "kg"})
+run_test("Partial Remove Unit Conversion (kg -> g)", "/api/items/remove", {"item_name": "onion", "quantity": 500, "unit": "g"}, expected_in_response="'quantity': 1.5")
+run_test("Exact Zero Removal Boundary", "/api/items/remove", {"item_name": "onion", "quantity": 1.5, "unit": "kg"}, expected_in_response="'removed': True")
+
+requests.post(f"{BASE_URL}/api/items", json={"item_name": "orange", "quantity": 10, "unit": "piece"})
+run_test("Partial Remove Pieces", "/api/items/remove", {"item_name": "orange", "quantity": 3, "unit": "piece"}, expected_in_response="'quantity': 7")
+run_test("Partial Remove Overdraft Pieces", "/api/items/remove", {"item_name": "orange", "quantity": 20, "unit": "piece"}, expected_in_response="'removed': True")
+
+requests.post(f"{BASE_URL}/api/items", json={"item_name": "sugar", "quantity": 1500, "unit": "g"})
+run_test("Partial Remove Unit Conversion (g -> kg)", "/api/items/remove", {"item_name": "sugar", "quantity": 1, "unit": "kg"}, expected_in_response="'quantity': 500")
+
+requests.post(f"{BASE_URL}/api/items", json={"item_name": "wheat flour", "quantity": 1, "unit": "kg"})
+run_test("Mismatch Unit Removal (kg vs piece)", "/api/items/remove", {"item_name": "wheat flour", "quantity": 2, "unit": "piece"}, expected_status=400)
+
+# 8. Test Negative Quantity Addition
+run_test("Add 5 apples", "/api/items", {"item_name": "apple", "quantity": 5, "unit": "piece"}, expected_in_response="'quantity': 5")
+run_test("Add -3 apples (Negative Quantity)", "/api/items", {"item_name": "apple", "quantity": -3, "unit": "piece"}, expected_status=400, expected_in_response="invalid")
+
+# 9. Test Exact Removal Bug
+run_test("Add 5 bananas", "/api/items", {"item_name": "banana", "quantity": 5, "unit": "piece"}, expected_in_response="'quantity': 5")
+run_test("Remove 5 bananas (Exact Amount)", "/api/items/remove", {"item_name": "banana", "quantity": 5, "unit": "piece"}, expected_in_response="'removed': True")
+
+# 10. Verify list is correct at the end
 run_test("Verify Final List State", "/api/items", None, method="GET")
 
 print("\n--- TEST RUN COMPLETE ---")
