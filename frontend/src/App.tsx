@@ -6,17 +6,29 @@ import { Check, ChevronDown, CircleHelp, Mic, MoreHorizontal, Plus, Trash2, X } 
 type Item = { id: string | number; name: string; quantity: number; unit: string; category?: string; purchased_at?: string | null; added_at?: string }
 type Toast = { id: number; message: string; tone: 'success' | 'error' }
 
+function SuggestionRow({ suggestion, onAdd }: { suggestion: string, onAdd: (name: string, qty: number) => void }) {
+  const [qty, setQty] = useState(1);
+  return (
+    <div className="suggestion-quick-add">
+      <span className="suggestion-name">{suggestion}</span>
+      <input type="number" min="1" value={qty} onChange={(e) => setQty(parseInt(e.target.value) || 1)} className="suggestion-qty-input" />
+      <button className="suggestion-add-button" onClick={() => onAdd(suggestion, qty)}>Add</button>
+    </div>
+  );
+}
+
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const categoryOrder = ['Produce', 'Dairy', 'Meat', 'Pantry', 'Frozen', 'Other']
 
 function formatQuantity(item: Item) {
-  return `${item.quantity} ${item.unit || 'pieces'}`
+  return `${item.quantity} ${item.unit || ''}`.trim();
 }
 
 export default function Page() {
   const [items, setItems] = useState<Item[]>([])
   const [suggestions, setSuggestions] = useState<{name: string, score: number}[]>([])
-  const [followUp, setFollowUp] = useState<{triggerItem: string, suggestions: string[]} | null>(null)
+  const [itemSuggestions, setItemSuggestions] = useState<Record<string, string[]>>({})
+  const [itemSuggestionsOpen, setItemSuggestionsOpen] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [syncStatus, setSyncStatus] = useState<'synced' | 'offline'>('synced')
   const [listening, setListening] = useState(false)
@@ -64,15 +76,14 @@ export default function Page() {
     return [...groups.entries()].sort(([a], [b]) => (categoryOrder.indexOf(a) + 1 || 99) - (categoryOrder.indexOf(b) + 1 || 99))
   }, [items])
 
-  const addItem = async (itemName: string, quantity: number, unit = 'pieces') => {
+  const addItem = async (itemName: string, quantity: number, unit: string | null = null) => {
     const response = await fetch(`${API}/api/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item_name: itemName, quantity, unit }) })
     if (!response.ok) throw new Error('Add failed')
     const data = await response.json()
-    notify(`Added ${quantity} ${unit} of ${itemName}`)
+    notify(`Added ${quantity} ${unit || ''} of ${itemName}`.trim().replace(/\s+/g, ' '))
     if (data.follow_ups && data.follow_ups.length > 0) {
-      setFollowUp({ triggerItem: itemName, suggestions: data.follow_ups })
-    } else {
-      setFollowUp(null)
+      setItemSuggestions(prev => ({...prev, [data.item.id]: data.follow_ups}))
+      setItemSuggestionsOpen(prev => ({...prev, [data.item.id]: true}))
     }
     await refresh()
   }
@@ -85,9 +96,9 @@ export default function Page() {
       const result = await response.json()
       for (const action of result.actions || []) {
         const entity = action.entities || {}
-        if (action.intent === 'ADD_ITEM') await addItem(entity.item_name, entity.quantity || 1, entity.unit || 'pieces')
+        if (action.intent === 'ADD_ITEM') await addItem(entity.item_name, entity.quantity || 1, entity.unit || null)
         if (action.intent === 'REMOVE_ITEM') {
-          await fetch(`${API}/api/items/remove`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item_name: entity.item_name, quantity: entity.quantity || 1, unit: entity.unit || 'pieces' }) })
+          await fetch(`${API}/api/items/remove`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item_name: entity.item_name, quantity: entity.quantity || null, unit: entity.unit || null }) })
           notify(`Removed ${entity.item_name}`); await refresh()
         }
         if (action.intent === 'CLEAR_LIST') await clearList()
@@ -136,15 +147,6 @@ export default function Page() {
   return <main className="app-shell">
     <div className="ambient ambient-one" /><div className="ambient ambient-two" />
     <header className="topbar"><div className="brand"><div className="brand-mark"><Check size={18} strokeWidth={3} /></div><span>LISTEN<span className="brand-dot">.</span></span></div><div className="header-actions"><button className="icon-button" aria-label="More options" onClick={() => setAboutOpen(true)}><MoreHorizontal size={19} /></button><button className="clear-button" onClick={clearList}><Trash2 size={15} /> Clear list</button></div></header>
-    {followUp && <div className="follow-up-banner">
-      <div className="follow-up-content">
-        <p>You added <strong>{followUp.triggerItem}</strong>. Also add:</p>
-        <div className="follow-up-chips">
-          {followUp.suggestions.map(s => <button key={s} onClick={() => { setFollowUp(null); addItem(s, 1); }}>+ {s}</button>)}
-        </div>
-      </div>
-      <button className="follow-up-close" onClick={() => setFollowUp(null)}><X size={14} /></button>
-    </div>}
     <section className="content"><div className="eyebrow"><span className="eyebrow-line" /> YOUR SHOPPING LIST <span className="eyebrow-line" /></div><div className="title-row"><div><h1>Things to get</h1><p>{items.length} {items.length === 1 ? 'item' : 'items'} on your list <span className={`status-dot ${syncStatus}`} aria-label={syncStatus === 'synced' ? 'Synced' : 'Offline'} /> {syncStatus === 'synced' ? 'synced just now' : 'sync unavailable'}</p></div><button className="add-button" onClick={() => setManualOpen(true)}><Plus size={18} /> Add item</button></div>
       {suggestions.length > 0 && <div className="suggestions-track">
         {suggestions.map((s) => (
@@ -153,7 +155,7 @@ export default function Page() {
           </button>
         ))}
       </div>}
-      {loading ? <div className="empty-state"><div className="loader" />Loading your list...</div> : grouped.length === 0 ? <div className="empty-state"><div className="empty-icon"><Check size={24} /></div><h2>Your list is clear</h2><p>Tap the microphone and say what you need.</p></div> : <div className="list-groups">{grouped.map(([category, group]) => <section className="category" key={category}><div className="category-heading"><span>{category}</span><span className="category-count">{group.length}</span></div><div className="item-stack">{group.map((item) => <article className={`item-card ${item.purchased_at ? 'purchased' : ''}`} key={item.id}><button className="check-button" aria-label={`Mark ${item.name} ${item.purchased_at ? 'not purchased' : 'purchased'}`} onClick={() => toggle(item)}>{item.purchased_at && <Check size={15} strokeWidth={3} />}</button><div className="item-copy"><span className="item-name">{item.name}</span><span className="item-added">Added {item.added_at ? new Date(item.added_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'today'}</span></div><span className="quantity-pill">{formatQuantity(item)}</span><button className="delete-button" aria-label={`Remove ${item.name}`} onClick={() => remove(item)}><Trash2 size={17} /></button></article>)}</div></section>)}</div>}
+      {loading ? <div className="empty-state"><div className="loader" />Loading your list...</div> : grouped.length === 0 ? <div className="empty-state"><div className="empty-icon"><Check size={24} /></div><h2>Your list is clear</h2><p>Tap the microphone and say what you need.</p></div> : <div className="list-groups">{grouped.map(([category, group]) => <section className="category" key={category}><div className="category-heading"><span>{category}</span><span className="category-count">{group.length}</span></div><div className="item-stack">{group.map((item) => <article className={`item-card ${item.purchased_at ? 'purchased' : ''}`} key={item.id}><div className="item-card-main"><button className="check-button" aria-label={`Mark ${item.name} ${item.purchased_at ? 'not purchased' : 'purchased'}`} onClick={() => toggle(item)}>{item.purchased_at && <Check size={15} strokeWidth={3} />}</button><div className="item-copy"><span className="item-name">{item.name}</span><span className="item-added">Added {item.added_at ? new Date(item.added_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'today'}</span></div><span className="quantity-pill">{formatQuantity(item)}</span>{itemSuggestions[item.id] && <button className="icon-button" aria-label="Toggle suggestions" onClick={() => setItemSuggestionsOpen(prev => ({...prev, [item.id]: !prev[item.id]}))}><ChevronDown size={18} style={{ transform: itemSuggestionsOpen[item.id] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} /></button>}<button className="delete-button" aria-label={`Remove ${item.name}`} onClick={() => remove(item)}><Trash2 size={17} /></button></div>{itemSuggestions[item.id] && itemSuggestionsOpen[item.id] && <div className="item-suggestions-dropdown"><p className="suggestions-title">Suggested additions:</p><div className="suggestions-list">{itemSuggestions[item.id].map(suggestion => <SuggestionRow key={suggestion} suggestion={suggestion} onAdd={addItem} />)}</div></div>}</article>)}</div></section>)}</div>}
     </section>
     <div className="voice-dock"><div className={`transcript ${transcript ? 'visible' : ''}`}>{transcript || 'Tap to speak'}</div><button className={`mic-button ${listening ? 'is-listening' : ''}`} onClick={listening ? () => recognitionRef.current?.stop() : startListening} aria-label={listening ? 'Stop listening' : 'Start voice input'}><span className="mic-ring ring-one" /><span className="mic-ring ring-two" /><Mic size={29} strokeWidth={2.2} /></button><p className="voice-hint">{listening ? 'Listening for your command' : 'Say “add apples” or “remove milk”'}</p></div>
     {manualOpen && <div className="modal-backdrop" onClick={() => setManualOpen(false)}><form className="modal" onSubmit={submitManual} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setManualOpen(false)}><X size={18} /></button><span className="modal-label">ADD AN ITEM</span><h2>What do you need?</h2><input autoFocus value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="e.g. oat milk" /><div className="modal-row"><input type="number" min="1" value={manualQty} onChange={(event) => setManualQty(event.target.value)} /><span>pieces</span></div><button className="modal-submit" type="submit">Add to list <ChevronDown size={16} /></button></form></div>}

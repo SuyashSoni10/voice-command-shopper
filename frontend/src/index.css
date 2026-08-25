@@ -54,8 +54,9 @@ button { cursor: pointer; }
 .category-heading { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; color: var(--muted-foreground); font-size: 10px; letter-spacing: .17em; font-weight: 700; text-transform: uppercase; }
 .category-count { display: grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 50%; background: var(--foreground); color: var(--background); font-size: 10px; letter-spacing: 0; }
 .item-stack { display: flex; flex-direction: column; gap: 1px; border-top: 1px solid var(--border); }
-.item-card { display: flex; align-items: center; gap: 14px; padding: 16px 2px; border-bottom: 1px solid var(--border); background: var(--background); animation: slide-in .35s both; transition: opacity .2s; }
-.item-card:hover { opacity: .65; }
+.item-card { display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 16px 2px; border-bottom: 1px solid var(--border); background: var(--background); animation: slide-in .35s both; transition: opacity .2s; }
+.item-card-main { display: flex; align-items: center; gap: 14px; width: 100%; }
+.item-card-main:hover { opacity: .65; }
 .check-button { display: grid; place-items: center; width: 21px; height: 21px; flex: 0 0 21px; border: 1px solid var(--foreground); border-radius: 50%; background: var(--background); color: var(--background); }
 .purchased .check-button { background: var(--foreground); }
 .item-copy { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
@@ -216,3 +217,13 @@ button { cursor: pointer; }
 .suggestion-chip:hover svg {
   color: var(--foreground);
 }
+
+/* --- Card Suggestions Dropdown --- */
+.item-suggestions-dropdown { padding: 12px 14px; background: #fafafa; border: 1px solid var(--border); border-radius: 8px; animation: slide-in 0.2s both; }
+.suggestions-title { margin: 0 0 10px 0; font-size: 11px; color: var(--muted-foreground); text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; }
+.suggestions-list { display: flex; flex-direction: column; gap: 8px; }
+.suggestion-quick-add { display: flex; align-items: center; gap: 8px; }
+.suggestion-name { flex: 1; font-size: 14px; font-weight: 500; text-transform: capitalize; }
+.suggestion-qty-input { width: 50px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; text-align: center; }
+.suggestion-add-button { padding: 6px 12px; border: 0; background: var(--foreground); color: var(--background); border-radius: 6px; font-size: 12px; font-weight: 600; }
+.suggestion-add-button:hover { background: var(--muted-foreground); }
