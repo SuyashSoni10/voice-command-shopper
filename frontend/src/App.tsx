@@ -39,7 +39,7 @@ const unitOptions = [
 
 export default function Page() {
   const [items, setItems] = useState<Item[]>([])
-  const [suggestions, setSuggestions] = useState<{name: string, score: number}[]>([])
+  const [suggestions, setSuggestions] = useState<{ name: string, score: number }[]>([])
   const [itemSuggestions, setItemSuggestions] = useState<Record<string, string[]>>({})
   const [itemSuggestionsOpen, setItemSuggestionsOpen] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
@@ -49,6 +49,7 @@ export default function Page() {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [manualOpen, setManualOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const [manualName, setManualName] = useState('')
   const [manualQty, setManualQty] = useState('1')
   const [manualUnit, setManualUnit] = useState('auto')
@@ -69,7 +70,7 @@ export default function Page() {
         fetch(`${API}/api/items`),
         fetch(`${API}/api/suggest`)
       ])
-      
+
       if (!itemsRes.ok || !suggestRes.ok) throw new Error('Unable to load data')
       setItems(await itemsRes.json())
       setSuggestions(await suggestRes.json())
@@ -97,8 +98,8 @@ export default function Page() {
     const data = await response.json()
     notify(`Added ${quantity} ${unit || ''} of ${itemName}`.trim().replace(/\s+/g, ' '))
     if (data.follow_ups && data.follow_ups.length > 0) {
-      setItemSuggestions(prev => ({...prev, [data.item.id]: data.follow_ups}))
-      setItemSuggestionsOpen(prev => ({...prev, [data.item.id]: true}))
+      setItemSuggestions(prev => ({ ...prev, [data.item.id]: data.follow_ups }))
+      setItemSuggestionsOpen(prev => ({ ...prev, [data.item.id]: true }))
     }
     await refresh()
   }
@@ -116,6 +117,10 @@ export default function Page() {
           await fetch(`${API}/api/items/remove`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item_name: entity.item_name, quantity: entity.quantity || null, unit: entity.unit || null }) })
           notify(`Removed ${entity.item_name}`); await refresh()
         }
+        if (action.intent === 'UPDATE_ITEM') {
+          await fetch(`${API}/api/items/update`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item_name: entity.item_name, quantity: entity.quantity || 1, unit: entity.unit || null }) })
+          notify(`Updated ${entity.item_name}`); await refresh()
+        }
         if (action.intent === 'CLEAR_LIST') await clearList()
       }
     } catch { notify('I could not understand that command.', 'error') }
@@ -125,16 +130,16 @@ export default function Page() {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) { notify('Voice input is not supported in this browser.', 'error'); return }
     const recognition = new SpeechRecognition()
-    recognition.lang = 'en-US'; recognition.interimResults = true; recognition.continuous = false
+    recognition.lang = 'en-US'; recognition.interimResults = true; recognition.continuous = true
     recognition.onstart = () => { setListening(true); setTranscript('Listening...'); transcriptRef.current = '' }
     recognition.onresult = (event: any) => {
       const text = Array.from(event.results).map((result: any) => result[0].transcript).join('')
       setTranscript(text)
       transcriptRef.current = text
     }
-    recognition.onerror = () => { setListening(false); setTranscript('') ; notify('Microphone access was unavailable.', 'error') }
-    recognition.onend = () => { 
-      setListening(false); 
+    recognition.onerror = () => { setListening(false); setTranscript(''); notify('Microphone access was unavailable.', 'error') }
+    recognition.onend = () => {
+      setListening(false);
       const current = transcriptRef.current;
       if (current && current !== 'Listening...') {
         processTranscript(current);
@@ -170,10 +175,27 @@ export default function Page() {
           </button>
         ))}
       </div>}
-      {loading ? <div className="empty-state"><div className="loader" />Loading your list...</div> : grouped.length === 0 ? <div className="empty-state"><div className="empty-icon"><Check size={24} /></div><h2>Your list is clear</h2><p>Tap the microphone and say what you need.</p></div> : <div className="list-groups">{grouped.map(([category, group]) => <section className="category" key={category}><div className="category-heading"><span>{category}</span><span className="category-count">{group.length}</span></div><div className="item-stack">{group.map((item) => <article className={`item-card ${item.purchased_at ? 'purchased' : ''}`} key={item.id}><div className="item-card-main"><button className="check-button" aria-label={`Mark ${item.name} ${item.purchased_at ? 'not purchased' : 'purchased'}`} onClick={() => toggle(item)}>{item.purchased_at && <Check size={15} strokeWidth={3} />}</button><div className="item-copy"><span className="item-name">{item.name}</span><span className="item-added">Added {item.added_at ? new Date(item.added_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'today'}</span></div><span className="quantity-pill">{formatQuantity(item)}</span>{itemSuggestions[item.id] && <button className="icon-button" aria-label="Toggle suggestions" onClick={() => setItemSuggestionsOpen(prev => ({...prev, [item.id]: !prev[item.id]}))}><ChevronDown size={18} style={{ transform: itemSuggestionsOpen[item.id] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} /></button>}<button className="delete-button" aria-label={`Remove ${item.name}`} onClick={() => remove(item)}><Trash2 size={17} /></button></div>{itemSuggestions[item.id] && itemSuggestionsOpen[item.id] && <div className="item-suggestions-dropdown"><p className="suggestions-title">Suggested additions:</p><div className="suggestions-list">{itemSuggestions[item.id].map(suggestion => <SuggestionRow key={suggestion} suggestion={suggestion} onAdd={addItem} />)}</div></div>}</article>)}</div></section>)}</div>}
+      {loading ? <div className="empty-state"><div className="loader" />Loading your list...</div> : grouped.length === 0 ? <div className="empty-state"><div className="empty-icon"><Check size={24} /></div><h2>Your list is clear</h2><p>Tap the microphone and say what you need.</p></div> : <div className="list-groups">{grouped.map(([category, group]) => <section className="category" key={category}><div className="category-heading"><span>{category}</span><span className="category-count">{group.length}</span></div><div className="item-stack">{group.map((item) => <article className={`item-card ${item.purchased_at ? 'purchased' : ''}`} key={item.id}><div className="item-card-main"><button className="check-button" aria-label={`Mark ${item.name} ${item.purchased_at ? 'not purchased' : 'purchased'}`} onClick={() => toggle(item)}>{item.purchased_at && <Check size={15} strokeWidth={3} />}</button><div className="item-copy"><span className="item-name">{item.name}</span><span className="item-added">Added {item.added_at ? new Date(item.added_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'today'}</span></div><span className="quantity-pill">{formatQuantity(item)}</span>{itemSuggestions[item.id] && <button className="icon-button" aria-label="Toggle suggestions" onClick={() => setItemSuggestionsOpen(prev => ({ ...prev, [item.id]: !prev[item.id] }))}><ChevronDown size={18} style={{ transform: itemSuggestionsOpen[item.id] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} /></button>}<button className="delete-button" aria-label={`Remove ${item.name}`} onClick={() => remove(item)}><Trash2 size={17} /></button></div>{itemSuggestions[item.id] && itemSuggestionsOpen[item.id] && <div className="item-suggestions-dropdown"><p className="suggestions-title">Suggested additions:</p><div className="suggestions-list">{itemSuggestions[item.id].map(suggestion => <SuggestionRow key={suggestion} suggestion={suggestion} onAdd={addItem} />)}</div></div>}</article>)}</div></section>)}</div>}
     </section>
-    <div className="voice-dock"><div className={`transcript ${transcript ? 'visible' : ''}`}>{transcript || 'Tap to speak'}</div><button className={`mic-button ${listening ? 'is-listening' : ''}`} onClick={listening ? () => recognitionRef.current?.stop() : startListening} aria-label={listening ? 'Stop listening' : 'Start voice input'}><span className="mic-ring ring-one" /><span className="mic-ring ring-two" /><Mic size={29} strokeWidth={2.2} /></button><p className="voice-hint">{listening ? 'Listening for your command' : 'Say “add apples” or “remove milk”'}</p></div>
+    <div className="voice-dock"><div className={`transcript ${transcript ? 'visible' : ''}`}>{transcript || 'Tap to speak'}</div><div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', width: '100%', maxWidth: '320px', pointerEvents: 'none' }}><div /><button className={`mic-button ${listening ? 'is-listening' : ''}`} onClick={listening ? () => recognitionRef.current?.stop() : startListening} aria-label={listening ? 'Stop listening' : 'Start voice input'}><span className="mic-ring ring-one" /><span className="mic-ring ring-two" /><Mic size={29} strokeWidth={2.2} /></button><div style={{ display: 'flex', paddingLeft: '20px', pointerEvents: 'auto' }}><button className="icon-button" onClick={() => setHelpOpen(true)} aria-label="Voice command help"><CircleHelp size={22} /></button></div></div><p className="voice-hint">{listening ? 'Listening for your command' : 'Say “add apples” or “remove milk”'}</p></div>
     {manualOpen && <div className="modal-backdrop" onClick={() => setManualOpen(false)}><form className="modal" onSubmit={submitManual} onClick={(event) => { event.stopPropagation(); setUnitDropdownOpen(false); }}><button type="button" className="modal-close" onClick={() => setManualOpen(false)}><X size={18} /></button><span className="modal-label">ADD AN ITEM</span><h2>What do you need?</h2><input autoFocus value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="e.g. oat milk" /><div className="modal-row"><input type="number" min="1" step="any" value={manualQty} onChange={(event) => setManualQty(event.target.value)} /><div className="custom-select-wrapper"><button type="button" className={`custom-select-trigger ${unitDropdownOpen ? 'open' : ''}`} onClick={(e) => { e.stopPropagation(); setUnitDropdownOpen(!unitDropdownOpen); }}><span>{unitOptions.find(o => o.value === manualUnit)?.label || 'Auto-detect unit'}</span><ChevronDown size={14} style={{ transform: unitDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} /></button>{unitDropdownOpen && <div className="custom-select-dropdown">{unitOptions.map(opt => <button type="button" key={opt.value} className={`custom-select-option ${manualUnit === opt.value ? 'selected' : ''}`} onClick={() => { setManualUnit(opt.value); setUnitDropdownOpen(false); }}>{opt.label}</button>)}</div>}</div></div><button className="modal-submit" type="submit">Add to list <Plus size={16} strokeWidth={3} /></button></form></div>}
+    {helpOpen && (
+      <div className="modal-backdrop" onClick={() => setHelpOpen(false)}>
+        <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <button className="modal-close" onClick={() => setHelpOpen(false)}><X size={18} /></button>
+          <span className="modal-label">VOICE COMMANDS</span>
+          <h2 style={{ marginBottom: '16px' }}>What you can say</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '14px', color: 'var(--muted-foreground)' }}>
+            <div><strong style={{ color: 'var(--foreground)' }}>Add Items:</strong><br />"Add 2 kg of potatoes"<br />"Get a dozen eggs"</div>
+            <div><strong style={{ color: 'var(--foreground)' }}>Remove Items:</strong><br />"Remove the milk"<br />"Take off eggs"</div>
+            <div><strong style={{ color: 'var(--foreground)' }}>Update Items:</strong><br />"Increase apples to 5"<br />"Reduce milk to 1 liter"</div>
+            <div><strong style={{ color: 'var(--foreground)' }}>Swap Items:</strong><br />"Swap apples for bananas"<br />"Instead of milk, get water"</div>
+            <div><strong style={{ color: 'var(--foreground)' }}>Clear List:</strong><br />"Clear my list"</div>
+            <div><strong style={{ color: 'var(--foreground)' }}>Mix and Match:</strong><br />"Add 5 apples and swap milk for oat milk"</div>
+          </div>
+        </div>
+      </div>
+    )}
     {aboutOpen && (
       <div className="modal-backdrop" onClick={() => setAboutOpen(false)}>
         <div className="modal" onClick={(e) => e.stopPropagation()}>
