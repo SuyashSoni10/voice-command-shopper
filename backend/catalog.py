@@ -46,8 +46,13 @@ UNIT_ALIASES: Dict[str, str] = {
 # Conversion to base unit (g for weight, ml for volume, 1 for count)
 UNIT_TO_BASE: Dict[str, float] = {
     "kg": 1000.0,   # 1 kg = 1000 g
+    "kilogram": 1000.0,
+    "kilo": 1000.0,
     "g": 1.0,
+    "gram": 1.0,
     "l": 1000.0,    # 1 l = 1000 ml
+    "liter": 1000.0,
+    "litre": 1000.0,
     "ml": 1.0,
     "piece": 1.0,
     "pack": 1.0,
@@ -71,8 +76,8 @@ UNIT_TO_BASE: Dict[str, float] = {
 
 # Which dimension each unit belongs to — used to check convertibility
 UNIT_DIMENSION: Dict[str, str] = {
-    "kg": "weight", "g": "weight",
-    "l": "volume", "ml": "volume",
+    "kg": "weight", "kilogram": "weight", "kilo": "weight", "g": "weight", "gram": "weight",
+    "l": "volume", "liter": "volume", "litre": "volume", "ml": "volume",
     "piece": "count", "pack": "count", "bottle": "count",
     "can": "count", "box": "count", "bag": "count",
     "loaf": "count", "bunch": "count", "tray": "count",
@@ -360,8 +365,9 @@ BAKERY: List[CatalogItem] = [
 # ═══════════════════════════════════════════════════════════════════════
 PANTRY: List[CatalogItem] = [
     _item("rice",            ["rices", "chawal", "basmati", "basmati rice"],  _Bag, "kg",   "pantry"),
-    _item("wheat flour",     ["wheat flours", "atta", "gehu ka atta"],       _Bag, "kg",   "pantry"),
+    _item("wheat flour",     ["wheat flours", "atta", "gehu ka atta", "flour"],       _Bag, "kg",   "pantry"),
     _item("all purpose flour", ["maida", "refined flour"],                   _Bag, "kg",   "pantry"),
+    _item("cereal",          ["cereals", "corn flakes", "oats"],             ["box", "pack", "bag", "kg", "g"], "box",  "pantry"),
     _item("sugar",           ["sugars", "cheeni"],                           _Bag, "kg",   "pantry"),
     _item("salt",            ["salts", "namak"],                             _Bag, "kg",   "pantry"),
     _item("cooking oil",     ["cooking oils", "oil", "vegetable oil"],       _VB,  "l",    "pantry"),
