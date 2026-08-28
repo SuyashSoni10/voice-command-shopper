@@ -93,7 +93,27 @@ run_test("Add -3 apples (Negative Quantity)", "/api/items", {"item_name": "apple
 run_test("Add 5 bananas", "/api/items", {"item_name": "banana", "quantity": 5, "unit": "piece"}, expected_in_response="'quantity': 5")
 run_test("Remove 5 bananas (Exact Amount)", "/api/items/remove", {"item_name": "banana", "quantity": 5, "unit": "piece"}, expected_in_response="'removed': True")
 
-# 10. Verify list is correct at the end
+# 10. Test Long Queries with 3 or 5 commands
+run_test("Long Query 1 (3 adds)", "/api/nlu", {"transcript": "add one apple add two oranges add three bananas", "language": "en-US"}, expected_in_response="'item_name': 'banana'")
+run_test("Long Query 2 (3 removes)", "/api/nlu", {"transcript": "remove one apple remove two oranges remove three bananas", "language": "en-US"}, expected_in_response="'intent': 'REMOVE_ITEM'")
+run_test("Long Query 3 (5 adds)", "/api/nlu", {"transcript": "add milk add bread add cheese add butter add eggs", "language": "en-US"}, expected_in_response="'item_name': 'egg'")
+run_test("Long Query 4 (5 removes)", "/api/nlu", {"transcript": "remove milk remove bread remove cheese remove butter remove eggs", "language": "en-US"}, expected_in_response="'item_name': 'egg'")
+run_test("Long Query 5 (3 mixed)", "/api/nlu", {"transcript": "add one apple remove one orange add one banana", "language": "en-US"}, expected_in_response="'item_name': 'banana'")
+run_test("Long Query 6 (5 mixed)", "/api/nlu", {"transcript": "add one apple remove one orange add milk remove bread add cheese", "language": "en-US"}, expected_in_response="'item_name': 'cheese'")
+run_test("Long Query 7 (3 mixed with auxiliary)", "/api/nlu", {"transcript": "can you add one apple please remove one orange i need to add milk", "language": "en-US"}, expected_in_response="'item_name': 'milk'")
+run_test("Long Query 8 (5 mixed with auxiliary)", "/api/nlu", {"transcript": "please add bread can you remove cheese i want to add butter i need to remove eggs please add juice", "language": "en-US"}, expected_in_response="'item_name': 'juice'")
+run_test("Long Query 9 (3 with units)", "/api/nlu", {"transcript": "add 1 kg of potato remove 500 g of onion add 2 liters of milk", "language": "en-US"}, expected_in_response="'unit': 'l'")
+run_test("Long Query 10 (5 with units)", "/api/nlu", {"transcript": "add 1 kg of sugar remove 500 g of salt add 2 liters of water remove 1 liter of juice add 1 pack of biscuits", "language": "en-US"}, expected_in_response="'item_name': 'cookie'")
+
+# 11. Test Updates
+run_test("Update Query 1 (Increase)", "/api/nlu", {"transcript": "increase apples to 5", "language": "en-US"}, expected_in_response="'intent': 'UPDATE_ITEM'")
+run_test("Update Query 2 (Reduce with unit)", "/api/nlu", {"transcript": "reduce milk to 1 liter", "language": "en-US"}, expected_in_response="'intent': 'UPDATE_ITEM'")
+
+# 12. Test Swaps (Replace)
+run_test("Swap Query 1 (Swap for)", "/api/nlu", {"transcript": "swap apples for bananas", "language": "en-US"}, expected_in_response="'intent': 'ADD_ITEM'")
+run_test("Swap Query 2 (Instead of get)", "/api/nlu", {"transcript": "instead of milk, get water", "language": "en-US"}, expected_in_response="'intent': 'REMOVE_ITEM'")
+
+# 13. Verify list is correct at the end
 run_test("Verify Final List State", "/api/items", None, method="GET")
 
 print("\n--- TEST RUN COMPLETE ---")
