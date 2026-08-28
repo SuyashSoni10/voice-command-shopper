@@ -149,8 +149,10 @@ Entity Schema instructions:
 # ─── Helpers ──────────────────────────────────────────────────────────
 
 def singularize(word: str) -> str:
+    if not word: return word
+    if word == 'cookies': return 'cookie'
+    if word == 'boxes': return 'box'
     if word.endswith('ies'): return word[:-3] + 'y'
-    if word.endswith('es') and not word.endswith('oes'): return word[:-1]
     if word.endswith('oes'): return word[:-2]
     if word.endswith('s') and not word.endswith('ss'): return word[:-1]
     return word
@@ -298,6 +300,13 @@ def parse_single_fragment(normalized: str) -> Optional[NluAction]:
                         parsed_qty = 1
         else:
             parsed_qty = None if item_str.endswith('s') else 1
+            
+        item_str = item_str.strip()
+        if item_str.startswith('the '):
+            item_str = item_str[4:]
+        if item_str.startswith('of '):
+            item_str = item_str[3:]
+            
         final_unit = singularize(unit_str.replace(' of', '').strip()) if unit_str else None
         return singularize(item_str), parsed_qty, final_unit
 
@@ -305,7 +314,7 @@ def parse_single_fragment(normalized: str) -> Optional[NluAction]:
     remove_match = re.match(
         r'^(?:(?:can you |please |i want to |i need to )?(?:remove|delete|take off|drop)) '
         r'(?:((?:-?\d*\.\d+|-?\d+)|a dozen|an dozen|a half dozen|half a dozen|half dozen|dozen|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s+)?'
-        r'(?:(bottles?|cans?|boxes?|gallons?|packs?|bags?|liters?|litre?|l|ml|grams?|gm|g|kg?|kilos?|kilograms?)(?:\s+of)?\s+)?'
+        r'(?:(bottles?|cans?|boxes?|gallons?|packs?|bags?|liters?|litre?|l|ml|grams?|gm|g|kg?|kilos?|kilograms?|loaves?|loaf|pieces?)(?:\s+of)?\s+)?'
         r'(.*?)(?: from my list)?$', 
         normalized
     )
@@ -315,13 +324,15 @@ def parse_single_fragment(normalized: str) -> Optional[NluAction]:
         if any(kw in item_str for kw in fallback_keywords) or len(item_str) > 30:
             return None
         i_name, i_qty, i_unit = _parse_qty_unit_item(qty_str, unit_str, item_str)
+        if not qty_str:
+            i_qty = None
         return NluAction(intent="REMOVE_ITEM", entities=Entities(item_name=i_name, quantity=i_qty, unit=i_unit), confidence=1.0)
 
     # 3. Add item
     add_match = re.match(
         r'^(?:(?:i want to |i need to |can you |please )?(?:add|buy|get)|i need|i want) '
         r'(?:((?:-?\d*\.\d+|-?\d+)|a dozen|an dozen|a half dozen|half a dozen|half dozen|dozen|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s+)?'
-        r'(?:(bottles?|cans?|boxes?|gallons?|packs?|bags?|liters?|litre?|l|ml|grams?|gm|g|kg?|kilos?|kilograms?)(?:\s+of)?\s+)?'
+        r'(?:(bottles?|cans?|boxes?|gallons?|packs?|bags?|liters?|litre?|l|ml|grams?|gm|g|kg?|kilos?|kilograms?|loaves?|loaf|pieces?)(?:\s+of)?\s+)?'
         r'(.*?)$',
         normalized
     )
@@ -335,9 +346,29 @@ def parse_single_fragment(normalized: str) -> Optional[NluAction]:
         action = NluAction(intent="ADD_ITEM", entities=Entities(item_name=i_name, quantity=i_qty, unit=i_unit), confidence=1.0)
         return run_restricter_on_action(action)
 
+    # 6. Update item
+    update_match = re.match(r'^(?:(?:can you |please |i want to |i need to )?(?:update|increase|reduce|change|set)) (.*?) to (.*)$', normalized)
+    if update_match:
+        item_name = singularize(update_match.group(1).strip())
+        target_qty_str = update_match.group(2).strip()
+        
+        qty_match = re.match(
+            r'^((?:-?\d*\.\d+|-?\d+)|a dozen|an dozen|a half dozen|half a dozen|half dozen|dozen|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s*'
+            r'(bottles?|cans?|boxes?|gallons?|packs?|bags?|liters?|litre?|l|ml|grams?|gm|g|kg?|kilos?|kilograms?|loaves?|loaf|pieces?)?$',
+            target_qty_str
+        )
+        if qty_match:
+            qty_str, unit_str = qty_match.group(1), qty_match.group(2)
+            _, i_qty, i_unit = _parse_qty_unit_item(qty_str, unit_str, 'dummy')
+            return NluAction(intent="UPDATE_ITEM", entities=Entities(item_name=item_name, quantity=i_qty, unit=i_unit), confidence=1.0)
+        else:
+            _, i_qty, i_unit = _parse_qty_unit_item(target_qty_str, None, 'dummy')
+            return NluAction(intent="UPDATE_ITEM", entities=Entities(item_name=item_name, quantity=i_qty, unit=None), confidence=1.0)
+
     return None
 
 def parse_fast_path(transcript: str, language: str) -> Optional[NluResponse]:
+    print('FAST PATH TRANSCRIPT:', transcript)
     translation_dict = None
     lang_prefix = language.split('-')[0].lower()
     
@@ -353,14 +384,46 @@ def parse_fast_path(transcript: str, language: str) -> Optional[NluResponse]:
         mapped_words = [translation_dict["inputs"].get(w, w) for w in words]
         transcript = " ".join(mapped_words)
         
-    normalized = re.sub(r'[!]', '', transcript.lower().strip())
+    normalized = re.sub(r'[!.?]', '', transcript.lower().strip())
     
-    fragments = re.split(r'\s+and\s+|\s+&\s+|\s*,\s*', normalized)
+    # --- ASR Corrections & HCI Syntactic Sugar ---
+    # Strip auxiliary phrases and conversational articles
+    aux_pattern = r'\b(please|can you|could you|i want to|i need to|i need|i want|will you)\b'
+    normalized = re.sub(aux_pattern, '', normalized)
+    normalized = re.sub(r'\bthe\b', '', normalized)
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    
+    normalized = re.sub(r'\bat\b', 'add', normalized)
+    normalized = re.sub(r'\bad\b', 'add', normalized)
+    normalized = re.sub(r'\bhad\b', 'add', normalized)
+    normalized = re.sub(r'\b(add|buy|get|remove|delete)\s+to\b', r'\g<1> two', normalized)
+    
+    # Handle "decrease/increase [item] by [quantity]" syntax
+    normalized = re.sub(r'\b(?:decrease|reduce) (.*?) by (.*)\b', r'remove \2 of \1', normalized)
+    normalized = re.sub(r'\b(?:increase) (.*?) by (.*)\b', r'add \2 of \1', normalized)
+    normalized = re.sub(r'\b(add|buy|get|remove|delete)\s+for\b', r'\g<1> four', normalized)
+    normalized = re.sub(r'\btoo\b', 'two', normalized)
+    normalized = normalized.replace(" more ", " ")
+    
+    # Swaps / Replace
+    normalized = re.sub(r'\b(?:swap|replace)\s+(.*?)\s+(?:for|with)\s+(.*?)\b', r'remove \1 and add \2', normalized)
+    normalized = re.sub(r'\binstead of\s+(.*?)(?:,\s*|\s+)(?:get|add|buy|)\s*(.*?)\b', r'remove \1 and add \2', normalized)
+    # -----------------------
+    
+    # First split by explicit conjunctions/punctuation
+    parts = re.split(r'\s*,\s*and\s+|\s+and\s+|\s+&\s+|\s*,\s*', normalized)
+    fragments = []
+    # Then split parts that contain multiple verbs without conjunctions
+    split_pattern = r'(?<!\byou)(?<!\bplease)(?<!\bto)(?<!\bneed)(?<!\bwant)(?<!\bcan)\s+(?=\b(?:add|buy|get|remove|delete|take off|drop|find|search|look up|clear|update|increase|reduce|change|set|i want to|i need to|please|can you)\b)'
+    for part in parts:
+        fragments.extend(re.split(split_pattern, part))
+        
     actions = []
     current_verb = None
-    verbs = ['add', 'buy', 'get', 'remove', 'delete', 'take off', 'drop', 'find', 'search', 'look up', 'clear', 'i want to', 'i need to', 'please', 'can you']
+    verbs = ['add', 'buy', 'get', 'remove', 'delete', 'take off', 'drop', 'find', 'search', 'look up', 'clear', 'update', 'increase', 'reduce', 'change', 'set', 'i want to', 'i need to', 'please', 'can you']
     
     for frag in fragments:
+        print('FRAG:', frag)
         frag = frag.strip()
         if not frag:
             continue
@@ -369,7 +432,7 @@ def parse_fast_path(transcript: str, language: str) -> Optional[NluResponse]:
         for v in verbs:
             if frag.startswith(v + ' ') or frag == v:
                 has_verb = True
-                if v in ['add', 'buy', 'get', 'remove', 'delete', 'take off', 'drop', 'find', 'search', 'look up']:
+                if v in ['add', 'buy', 'get', 'remove', 'delete', 'take off', 'drop', 'find', 'search', 'look up', 'update', 'increase', 'reduce', 'change', 'set']:
                     current_verb = v
                 break
                 
@@ -513,6 +576,34 @@ async def clear_items(x_session_id: str = Header("default")):
     async with await get_session_lock(x_session_id):
         get_shopping_list(x_session_id).clear()
     return {"success": True}
+
+@app.patch("/api/items/update")
+async def update_item_qty(request: RemoveItemRequest, x_session_id: str = Header("default")):
+    """Update a specific item's quantity via name."""
+    async with await get_session_lock(x_session_id):
+        s_list = get_shopping_list(x_session_id)
+        name_lower = request.item_name.lower()
+        
+        target_id = None
+        for item_id, item in s_list.items():
+            if item["name"].lower() == name_lower:
+                target_id = item_id
+                break
+                
+        if target_id:
+            s_list[target_id]["quantity"] = request.quantity or 1
+            if request.unit:
+                s_list[target_id]["unit"] = request.unit
+            return {"success": True, "item": s_list[target_id]}
+        
+        # If not found, add it
+        item = _add_item_to_store(
+            name=request.item_name,
+            quantity=request.quantity or 1,
+            unit=request.unit,
+            session_id=x_session_id,
+        )
+        return {"success": True, "item": item, "merged": False}
 
 @app.delete("/api/items/{item_id}")
 async def delete_item(item_id: str, x_session_id: str = Header("default")):
