@@ -11,7 +11,9 @@ Designed for speed and reliability, this application completely bypasses slow cl
 - **Instant Voice Recognition**: Leverages the browser's native Web Speech API for real-time transcription.
 - **Local NLU Engine**: Zero-latency processing. No cloud LLMs, no external dependencies, and 100% privacy. 
 - **Advanced Quantity Parsing**: Intelligently parses fractions, decimals, and natural aliases (e.g., `"half a dozen" -> 6`, `"0.5 kg" -> 0.5`).
-- **Multi-Item Commands**: Supports compound instructions separated by "and" (e.g., *"Add apples and remove bananas"*).
+- **Multi-Intent Support**: Seamlessly executes multiple distinct actions within a single sentence, parsing Oxford commas and conjunctions (e.g., *"Add apples, swap milk for water, and remove bananas"*).
+- **Conversational Syntactic Sugar Stripping**: Effortlessly ignores conversational filler like "Please," "I need to," "Can you," and definite articles ("the", "of"), isolating pure intent.
+- **Advanced Operations (Update/Swap/Clear)**: Supports high-level operations like updating existing quantities (*"Increase apples to 5"*), swapping items (*"Instead of milk get water"*), and wiping lists.
 - **Smart Conversational Follow-Ups**: Evaluates cart additions in real-time against a predefined relational catalog to dynamically prompt the user with highly relevant follow-up items via inline card dropdowns.
 - **Fuzzy Catalog Matching**: Employs Levenshtein distance (`token_sort_ratio`) to seamlessly auto-correct misheard or misspelled item names.
 - **Dimensional Math Engine**: Intelligently converts, normalizes, and sums overlapping items across different unit dimensions (e.g., adding `500 g` to `1 kg` seamlessly merges to `1.5 kg`).
@@ -24,6 +26,8 @@ Designed for speed and reliability, this application completely bypasses slow cl
 Once the app is running, try the following voice commands (or manual inputs) to test the advanced features:
 - **Test Quantity Parsing**: Say *"Add half a dozen eggs"* (It will accurately add 6 eggs).
 - **Test Dimensional Math**: Say *"Add 1 kg of potatoes"*, then say *"Add 500 grams of potatoes"*. (It will automatically merge them into 1.5 kg).
+- **Test Multi-Intent Parsing**: Say *"Please add 3 boxes of cereal, swap potatoes for carrots, and remove the milk."*
+- **Test Quantity Modifiers**: Manually click the `+` or `-` buttons next to any item in your list to instantly scale quantities without voice.
 - **Test Fuzzy Matching**: Say *"Add tomaato"* (It will auto-correct to tomato).
 - **Test Conversational Follow-Ups**: Say *"Add milk"* (An inline dropdown will appear on the milk card prompting you to add cookies, cereal, or coffee).
 - **Test Smart Suggestions**: Click any of the suggested chips under the "Things to get" header to instantly add them to your cart. 
@@ -64,8 +68,9 @@ The UI acts as the presentation and recording layer. It initiates the Web Speech
 
 ### 2. The Backend NLU Pipeline (FastAPI)
 When the backend receives a raw string, it processes it through a strict, deterministic pipeline:
-1. **Splitting**: The string is split into distinct fragments by conjunctions (e.g., "and").
-2. **Intent Parsing**: Highly tuned regular expressions extract the action (`ADD`, `REMOVE`, `SEARCH`), the quantity (integers, floats, or aliases), the unit (kg, grams, pieces), and the raw item name.
+1. **Syntactic Sugar Stripping**: The string is sanitized, stripping filler phrases ("please", "the", "of") to prevent false entities.
+2. **Splitting**: The string is split into distinct fragments by conjunctions and Oxford commas (e.g., "and", ",").
+3. **Intent Parsing**: Highly tuned regular expressions extract the specific action (`ADD`, `REMOVE`, `UPDATE`, `SWAP`, `CLEAR`), the quantity (integers, floats, or aliases), the unit (kg, grams, pieces), and the raw item name.
 3. **Fuzzy Matching**: The raw item name is cross-referenced against the `catalog.py` using `thefuzz` library to handle misspellings and plurals (e.g., `"tomaato" -> "tomato"`).
 4. **Validation**: The `restricter.py` logic verifies that the requested unit makes physical sense for the matched catalog item.
 
@@ -117,4 +122,8 @@ The backend includes a comprehensive, edge-case hardened test suite to verify th
 ```bash
 cd backend
 python test_suite.py
+```
+To run the specialized complex multi-intent query tests:
+```bash
+python test_complex_queries.py
 ```

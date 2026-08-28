@@ -29,7 +29,11 @@ Once the raw transcript hits `main.py` on the backend, it enters the **Fast-Path
 
 ### How Words are Interpreted
 
-The function `parse_fast_path(text, current_list)` sanitizes the input by lowering the case and stripping punctuation, then attempts to match the string against highly tuned regex patterns.
+The function `parse_fast_path(text, current_list)` processes the transcript through a rigorous sequence:
+
+1. **Syntactic Sugar Stripping**: The engine runs a preliminary pass to strip conversational filler (`"please"`, `"could you"`, `"the"`) to prevent these words from being falsely captured as entity names.
+2. **Conjunction Splitting**: It uses regex (`re.split(r'\s+and\s+|,\s+and\s+|,\s+', ...)`) to cleanly slice sentences containing Oxford commas or compound structures into discrete command strings.
+3. **Intent Parsing**: Each discrete string is evaluated against strict intent patterns.
 
 #### A. The `ADD_ITEM` Regex Structure
 ```python
@@ -52,6 +56,13 @@ This regex is divided into four critical capture groups:
 4. Captures Item: `"tomato"`.
 
 The output is an `NluAction` object with the intent `ADD_ITEM` and entities `{ item_name: "tomato", quantity: 500.0, unit: "g" }`.
+
+#### C. Other Supported Intents
+Beyond adding items, the parser also actively detects:
+- **`REMOVE_ITEM`**: Evaluates keywords like `"remove"`, `"delete"`, or `"take off"`. If no quantity is specified, the parser intelligently passes `quantity: None`, prompting the state manager to delete the item entirely.
+- **`UPDATE_ITEM`**: Evaluates keywords like `"increase"`, `"reduce"`, or `"set"` in conjunction with the preposition `"to"`. (e.g., `"decrease sugar to 1 kg"`).
+- **`SWAP_ITEM`**: Detects phrases like `"swap X for Y"` or `"instead of X get Y"`, generating a composite action that executes a remove and an add sequentially.
+- **`CLEAR_LIST`**: Unconditionally flushes the active user's session dictionary.
 
 ---
 
